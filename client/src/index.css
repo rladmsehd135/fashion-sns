@@ -1,0 +1,33 @@
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background-color: #0A0A0A;
+  color: #F0F0F0;
+  font-family: 'Pretendard', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 스크롤바 */
+::-webkit-scrollbar { width: 3px; height: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #E8C96D; }
+
+a { text-decoration: none; color: inherit; }
+
+/* 이미지 드래그 방지 */
+img { -webkit-user-drag: none; user-select: none; }
+
+/* 부드러운 전환 */
+* { transition: background-color 0.15s ease, border-color 0.15s ease; }
+
+/* 포커스 아웃라인 제거 */
+*:focus { outline: none; }
+*:focus-visible { outline: 2px solid #E8C96D; outline-offset: 2px; }

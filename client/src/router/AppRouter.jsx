@@ -1,17 +1,20 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import useAuthStore from '../store/authStore';
-import Layout from '../components/layout/Navbar';
-
-import Login          from '../pages/Auth/Login';
-import Register       from '../pages/Auth/Register';
+import { CircularProgress, Box } from '@mui/material';
+import Layout       from '../components/layout/Navbar';
+import Login        from '../pages/Auth/Login';
+import Register     from '../pages/Auth/Register';
 import SocialCallback from '../pages/Auth/SocialCallback';
-import Feed           from '../pages/Feed/Feed';
-import Explore        from '../pages/Explore/Explore';
-import CreatePost     from '../pages/Post/CreatePost';
+import Feed         from '../pages/Feed/Feed';
+import Explore      from '../pages/Explore/Explore';
+import CreatePost   from '../pages/Post/CreatePost';
 import PostDetailPage from '../pages/Post/PostDetailPage';
-import Profile        from '../pages/Profile/Profile';
-import ChatPage       from '../pages/Chat/ChatPage';
-import Search         from '../pages/Search/Search';
+import Profile      from '../pages/Profile/Profile';
+import EditProfile  from '../pages/Profile/EditProfile';
+import ChatPage     from '../pages/Chat/ChatPage';
+import Search       from '../pages/Search/Search';
+import axiosInstance from '../api/axiosInstance';
 
 const PrivateRoute = ({ children }) => {
   const { isLoggedIn } = useAuthStore();
@@ -24,23 +27,55 @@ const PublicRoute = ({ children }) => {
 };
 
 const AppRouter = () => {
+  const { isLoggedIn, setAuth, logout } = useAuthStore();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token && !isLoggedIn) {
+      axiosInstance.get('/users/me')
+        .then(res => {
+          setAuth(res.data, localStorage.getItem('accessToken'));
+          setLoading(false);
+        })
+        .catch(() => {
+          localStorage.removeItem('accessToken');
+          logout();
+          setLoading(false);
+        });
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  if (loading) {
+    return (
+      <Box sx={{
+        minHeight: '100vh', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        backgroundColor: '#080808',
+      }}>
+        <CircularProgress sx={{ color: '#E8C96D' }} />
+      </Box>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
-        {/* 공개 라우트 */}
-        <Route path="/login"  element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
+        <Route path="/login"         element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/register"      element={<PublicRoute><Register /></PublicRoute>} />
         <Route path="/auth/callback" element={<SocialCallback />} />
 
-        {/* 인증 필요 라우트 */}
         <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-          <Route index                    element={<Feed />} />
-          <Route path="explore"           element={<Explore />} />
-          <Route path="post/create"       element={<CreatePost />} />
-          <Route path="post/:id"          element={<PostDetailPage />} />
-          <Route path="profile/:username" element={<Profile />} />
-          <Route path="chat"              element={<ChatPage />} />
-          <Route path="search"            element={<Search />} />
+          <Route index                      element={<Feed />} />
+          <Route path="explore"             element={<Explore />} />
+          <Route path="post/create"         element={<CreatePost />} />
+          <Route path="post/:id"            element={<PostDetailPage />} />
+          <Route path="profile/edit"        element={<EditProfile />} />
+          <Route path="profile/:username"   element={<Profile />} />
+          <Route path="chat"                element={<ChatPage />} />
+          <Route path="search"              element={<Search />} />
         </Route>
       </Routes>
     </BrowserRouter>

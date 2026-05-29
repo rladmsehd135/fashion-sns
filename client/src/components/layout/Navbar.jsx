@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import {
   Box, Typography, IconButton, Avatar, Badge,
@@ -8,38 +8,122 @@ import {
 import {
   HomeRounded, ExploreRounded, AddBoxRounded,
   PersonRounded, LogoutRounded, FavoriteBorderRounded,
-  SendRounded, ChatRounded, SearchRounded,
+  SendRounded, SearchRounded,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 import useNotificationStore from '../../store/notificationStore';
 import useSocket from '../../hooks/useSocket';
 import { logout as logoutApi } from '../../api/authApi';
+import axiosInstance from '../../api/axiosInstance';
 
-const Navbar = () => {
-  const navigate  = useNavigate();
-  const location  = useLocation();
-  const theme     = useTheme();
-  const isMobile  = useMediaQuery(theme.breakpoints.down('md'));
-  const { user, logout }                             = useAuthStore();
-  const { unreadCount, unreadChat, resetUnreadChat } = useNotificationStore();
-  const [expanded, setExpanded]   = useState(false);
-  const [notiOpen, setNotiOpen]   = useState(false);
+const NotiItem = ({ n, notiIcon, notiText, timeAgoNoti }) => {
+  const [isFollowing, setIsFollowing] = useState(n.is_following || false);
+
+  // n.is_following 이 바뀌면 동기화 (알림창 열 때마다 갱신)
+  useEffect(() => {
+    setIsFollowing(n.is_following || false);
+  }, [n.is_following]);
+
+  const handleFollow = async (e) => {
+    e.stopPropagation();
+    if (!n.sender_id) return;
+    try {
+      await axiosInstance.post(`/follow/${n.sender_id}`);
+      setIsFollowing(f => !f);
+      toast.success(isFollowing ? '팔로우 취소했어요.' : `${n.username}님을 팔로우했어요!`);
+    } catch { }
+  };
+
+  return (
+    <Box sx={{
+      display: 'flex', alignItems: 'center', gap: 1.5,
+      px: 1, py: 1.3, borderRadius: 2, cursor: 'pointer',
+      transition: 'all 0.15s',
+      '&:hover': { backgroundColor: 'rgba(255,255,255,0.03)' },
+    }}>
+      <Box sx={{ position: 'relative', flexShrink: 0 }}>
+        <Avatar
+          src={n.profile_image ? `http://localhost:5000${n.profile_image}` : null}
+          sx={{
+            width: 42, height: 42,
+            bgcolor: '#1A1A1A', color: '#E8C96D',
+            fontWeight: 800, fontSize: 16,
+            border: '1.5px solid #2A2A2A',
+          }}>
+          {n.username?.[0]?.toUpperCase()}
+        </Avatar>
+        <Box sx={{
+          position: 'absolute', bottom: -2, right: -2,
+          width: 18, height: 18, borderRadius: '50%',
+          backgroundColor: '#1A1A1A',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 10, border: '1.5px solid #0D0D0D',
+        }}>
+          {notiIcon(n.type)}
+        </Box>
+      </Box>
+
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography fontSize={13} sx={{ color: '#C0C0C0', lineHeight: 1.5 }}>
+          <Typography component="span" fontWeight={700}
+            sx={{
+              color: '#EFEFEF', mr: 0.5, cursor: 'pointer',
+              '&:hover': { color: '#E8C96D' }
+            }}>
+            {n.username}
+          </Typography>
+          {notiText(n)}
+        </Typography>
+        <Typography fontSize={11} sx={{ color: '#3A3A3A', mt: 0.2 }}>
+          {timeAgoNoti(n.created_at)}
+        </Typography>
+      </Box>
+
+      {n.type === 'follow' && (
+        <Box onClick={handleFollow}
+          sx={{
+            px: 1.5, py: 0.5, borderRadius: 8, flexShrink: 0,
+            cursor: 'pointer', fontSize: 12, fontWeight: 700,
+            backgroundColor: isFollowing ? 'transparent' : '#EFEFEF',
+            color: isFollowing ? '#808080' : '#0A0A0A',
+            border: isFollowing ? '1px solid #2A2A2A' : 'none',
+            transition: 'all 0.15s',
+            '&:hover': { opacity: 0.85 },
+          }}>
+          {isFollowing ? '팔로잉' : '맞팔로우'}
+        </Box>
+      )}
+    </Box>
+  );
+};
+
+export default function Navbar() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { user, logout } = useAuthStore();
+  const { unreadCount, unreadChat, resetUnreadChat,
+    notifications, resetUnreadCount, setNotifications } = useNotificationStore();
+  const [expanded, setExpanded] = useState(false);
+  const [notiOpen, setNotiOpen] = useState(false);
+  const [notiTab, setNotiTab] = useState('모두');
   useSocket();
 
   const navItems = [
-    { label: '홈',     icon: <HomeRounded />,    path: '/' },
-    { label: '탐색',   icon: <ExploreRounded />, path: '/explore' },
-    { label: '검색',   icon: <SearchRounded />,  path: '/search' },
-    { label: '업로드', icon: <AddBoxRounded />,  path: '/post/create' },
-    { label: '프로필', icon: <PersonRounded />,  path: `/profile/${user?.username}` },
+    { label: '홈', icon: <HomeRounded />, path: '/' },
+    { label: '탐색', icon: <ExploreRounded />, path: '/explore' },
+    { label: '검색', icon: <SearchRounded />, path: '/search' },
+    { label: '업로드', icon: <AddBoxRounded />, path: '/post/create' },
+    { label: '프로필', icon: <PersonRounded />, path: `/profile/${user?.username}` },
   ];
 
   const isActive = (path) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path.split(':')[0]);
 
-  const chatBadge  = unreadChat > 99 ? '99+' : unreadChat || 0;
-  const sideWidth  = expanded ? 240 : 72;
+  const chatBadge = unreadChat > 99 ? '99+' : unreadChat || 0;
+  const sideWidth = expanded ? 240 : 72;
 
   const handleLogout = async () => {
     try {
@@ -55,6 +139,93 @@ const Navbar = () => {
     }
   };
 
+  const openNoti = async () => {
+    setNotiOpen(true);
+    resetUnreadCount();
+    try {
+      const res = await axiosInstance.get('/notifications');
+
+      // 팔로우 알림의 sender_id들 팔로우 여부 확인
+      const followNotiIds = res.data
+        .filter(n => n.type === 'follow')
+        .map(n => n.sender_id)
+        .filter(Boolean);
+
+      const followChecks = await Promise.all(
+        followNotiIds.map(id =>
+          axiosInstance.get(`/users/${id}/follow-status`).catch(() => ({ data: { is_following: false } }))
+        )
+      );
+
+      const followStatusMap = {};
+      followNotiIds.forEach((id, i) => {
+        followStatusMap[id] = followChecks[i]?.data?.is_following || false;
+      });
+
+      const list = res.data.map(n => ({
+        type: n.type,
+        sender_id: n.sender_id,
+        username: n.sender_username,
+        profile_image: n.sender_image,
+        created_at: n.created_at,
+        is_read: n.is_read,
+        is_following: followStatusMap[n.sender_id] || false,
+      }));
+      setNotifications(list, 0);
+    } catch { }
+  };
+
+  const notiIcon = (type) => {
+    if (type === 'follow') return '👤';
+    if (type === 'like') return '❤️';
+    if (type === 'comment') return '💬';
+    if (type === 'chat_request') return '💌';
+    if (type === 'chat_accepted') return '✅';
+    return '🔔';
+  };
+
+  const notiText = (n) => {
+    if (n.type === 'follow') return '님이 팔로우하기 시작했어요.';
+    if (n.type === 'like') return '님이 좋아요를 눌렀어요.';
+    if (n.type === 'comment') return '님이 댓글을 남겼어요.';
+    if (n.type === 'chat_request') return '님이 채팅을 요청했어요.';
+    if (n.type === 'chat_accepted') return '님이 채팅 요청을 수락했어요.';
+    return '새 알림이 있어요.';
+  };
+
+  const timeAgoNoti = (date) => {
+    if (!date) return '방금 전';
+    const diff = Date.now() - new Date(date).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return '방금 전';
+    if (m < 60) return `${m}분 전`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}시간 전`;
+    const d = Math.floor(h / 24);
+    if (d < 7) return `${d}일 전`;
+    return new Date(date).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' });
+  };
+
+  const filteredNotifications = notifications.filter(n => {
+    if (notiTab === '모두') return true;
+    if (notiTab === '팔로우') return n.type === 'follow';
+    if (notiTab === '좋아요') return n.type === 'like';
+    if (notiTab === '댓글') return n.type === 'comment';
+    return true;
+  });
+
+  const now = new Date();
+  const thisMonth = filteredNotifications.filter(n => {
+    if (!n.created_at) return true;
+    const d = new Date(n.created_at);
+    return now.getFullYear() === d.getFullYear() && now.getMonth() === d.getMonth();
+  });
+  const older = filteredNotifications.filter(n => {
+    if (!n.created_at) return false;
+    const d = new Date(n.created_at);
+    return !(now.getFullYear() === d.getFullYear() && now.getMonth() === d.getMonth());
+  });
+
   const SideItem = ({ icon, label, path, onClick, badge }) => {
     const active = path ? isActive(path) : false;
     return (
@@ -65,24 +236,14 @@ const Navbar = () => {
             display: 'flex', alignItems: 'center',
             gap: expanded ? 2 : 0,
             px: expanded ? 2 : 0,
-            py: 1.5,
-            borderRadius: 3,
-            cursor: 'pointer',
+            py: 1.5, borderRadius: 3, cursor: 'pointer',
             justifyContent: expanded ? 'flex-start' : 'center',
             color: active ? '#F0F0F0' : '#505050',
             backgroundColor: active ? 'rgba(255,255,255,0.07)' : 'transparent',
-            position: 'relative',
-            overflow: 'hidden',
+            position: 'relative', overflow: 'hidden',
             transition: 'all 0.2s ease',
-            '&:hover': {
-              color: '#F0F0F0',
-              backgroundColor: 'rgba(255,255,255,0.05)',
-            },
-            '&:hover .nav-label': { opacity: 1 },
-            '& svg': {
-              fontSize: 26,
-              transition: 'transform 0.2s ease',
-            },
+            '&:hover': { color: '#F0F0F0', backgroundColor: 'rgba(255,255,255,0.05)' },
+            '& svg': { fontSize: 26, transition: 'transform 0.2s ease' },
             '&:hover svg': { transform: 'scale(1.1)' },
           }}>
           {badge !== undefined ? (
@@ -92,11 +253,8 @@ const Navbar = () => {
             </Badge>
           ) : icon}
           {expanded && (
-            <Typography
-              className="nav-label"
-              fontWeight={active ? 700 : 400}
-              fontSize={15}
-              sx={{ whiteSpace: 'nowrap', transition: 'opacity 0.2s' }}>
+            <Typography fontWeight={active ? 700 : 400} fontSize={15}
+              sx={{ whiteSpace: 'nowrap' }}>
               {label}
             </Typography>
           )}
@@ -121,24 +279,18 @@ const Navbar = () => {
           onMouseEnter={() => setExpanded(true)}
           onMouseLeave={() => setExpanded(false)}
           sx={{
-            width: sideWidth,
-            flexShrink: 0,
+            width: sideWidth, flexShrink: 0,
             position: 'fixed', left: 0, top: 0, bottom: 0,
             backgroundColor: '#0D0D0D',
             borderRight: '1px solid #1A1A1A',
             display: 'flex', flexDirection: 'column',
-            py: 2,
-            zIndex: 200,
+            py: 2, zIndex: 200,
             transition: 'width 0.25s cubic-bezier(0.4,0,0.2,1)',
             overflow: 'hidden',
           }}>
-
-          {/* 로고 */}
-          <Box
-            onClick={() => navigate('/')}
+          <Box onClick={() => navigate('/')}
             sx={{
-              px: expanded ? 2.5 : 0,
-              py: 1.5, mb: 2,
+              px: expanded ? 2.5 : 0, py: 1.5, mb: 2,
               display: 'flex', alignItems: 'center',
               justifyContent: expanded ? 'flex-start' : 'center',
               cursor: 'pointer', gap: 1.5,
@@ -149,15 +301,15 @@ const Navbar = () => {
               background: 'linear-gradient(135deg, #E8C96D, #B8952D)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}>
-              <Typography fontWeight={900} fontSize={16} sx={{ color: '#0A0A0A', lineHeight: 1 }}>F</Typography>
+              <Typography fontWeight={900} fontSize={16}
+                sx={{ color: '#0A0A0A', lineHeight: 1 }}>F</Typography>
             </Box>
             {expanded && (
               <Box>
                 <Typography fontWeight={900} letterSpacing={3} fontSize={17}
                   sx={{
                     background: 'linear-gradient(135deg, #E8C96D, #D4AF37)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
+                    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                     lineHeight: 1,
                   }}>
                   FITLOG
@@ -169,39 +321,31 @@ const Navbar = () => {
             )}
           </Box>
 
-          {/* 네비 아이템 */}
-          <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', px: expanded ? 1.5 : 1, gap: 0.5 }}>
-            {navItems.map(item => (
-              <SideItem key={item.label} {...item} />
-            ))}
+          <Box sx={{
+            flex: 1, display: 'flex', flexDirection: 'column',
+            px: expanded ? 1.5 : 1, gap: 0.5
+          }}>
+            {navItems.map(item => <SideItem key={item.label} {...item} />)}
             <SideItem
-              icon={<SendRounded />}
-              label="채팅"
-              path="/chat"
+              icon={<SendRounded />} label="채팅" path="/chat"
               onClick={() => { resetUnreadChat(); navigate('/chat'); }}
               badge={chatBadge}
             />
           </Box>
 
-          {/* 구분선 */}
           <Box sx={{ mx: 1.5, my: 1.5, height: '1px', backgroundColor: '#1A1A1A' }} />
 
-          {/* 알림 */}
           <Box sx={{ px: expanded ? 1.5 : 1, mb: 0.5 }}>
             <SideItem
-              icon={<FavoriteBorderRounded />}
-              label="알림"
-              badge={unreadCount}
-              onClick={() => setNotiOpen(true)}
+              icon={<FavoriteBorderRounded />} label="알림"
+              badge={unreadCount || undefined}
+              onClick={openNoti}
             />
           </Box>
 
-          {/* 유저 */}
-          <Box
-            onClick={() => navigate(`/profile/${user?.username}`)}
+          <Box onClick={() => navigate(`/profile/${user?.username}`)}
             sx={{
-              mx: 1, p: 1.5,
-              borderRadius: 3, cursor: 'pointer',
+              mx: 1, p: 1.5, borderRadius: 3, cursor: 'pointer',
               display: 'flex', alignItems: 'center',
               gap: expanded ? 1.5 : 0,
               justifyContent: expanded ? 'flex-start' : 'center',
@@ -213,8 +357,7 @@ const Navbar = () => {
               sx={{
                 width: 34, height: 34, flexShrink: 0,
                 bgcolor: '#E8C96D', color: '#0A0A0A',
-                fontSize: 13, fontWeight: 800,
-                border: '2px solid #2A2A2A',
+                fontSize: 13, fontWeight: 800, border: '2px solid #2A2A2A',
               }}>
               {user?.username?.[0]?.toUpperCase()}
             </Avatar>
@@ -228,7 +371,7 @@ const Navbar = () => {
                     내 프로필
                   </Typography>
                 </Box>
-                <IconButton size="small"
+                <IconButton disableRipple size="small"
                   onClick={(e) => { e.stopPropagation(); handleLogout(); }}
                   sx={{ color: '#333', flexShrink: 0, '&:hover': { color: '#FF6B6B' }, p: 0.5 }}>
                   <LogoutRounded sx={{ fontSize: 16 }} />
@@ -239,7 +382,7 @@ const Navbar = () => {
         </Box>
       )}
 
-      {/* ── 모바일 상단 바 ── */}
+      {/* ── 모바일 상단바 ── */}
       {isMobile && (
         <Box sx={{
           position: 'fixed', top: 0, left: 0, right: 0, zIndex: 200,
@@ -266,13 +409,15 @@ const Navbar = () => {
             </Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 0.5 }}>
-            <IconButton size="small" onClick={() => setNotiOpen(true)} sx={{ color: '#808080' }}>
+            <IconButton disableRipple size="small" onClick={openNoti} sx={{ color: '#808080' }}>
               <Badge badgeContent={unreadCount} color="error"
                 sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 15, height: 15 } }}>
                 <FavoriteBorderRounded sx={{ fontSize: 25 }} />
               </Badge>
             </IconButton>
-            <IconButton size="small" onClick={() => { resetUnreadChat(); navigate('/chat'); }} sx={{ color: '#808080' }}>
+            <IconButton disableRipple size="small"
+              onClick={() => { resetUnreadChat(); navigate('/chat'); }}
+              sx={{ color: '#808080' }}>
               <Badge badgeContent={chatBadge} color="error"
                 sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 15, height: 15 } }}>
                 <SendRounded sx={{ fontSize: 23 }} />
@@ -283,7 +428,10 @@ const Navbar = () => {
       )}
 
       {/* ── 알림 드로어 ── */}
-      <Drawer anchor={isMobile ? 'bottom' : 'left'} open={notiOpen} onClose={() => setNotiOpen(false)}
+      <Drawer
+        anchor={isMobile ? 'bottom' : 'left'}
+        open={notiOpen}
+        onClose={() => { setNotiOpen(false); resetUnreadCount(); }}
         PaperProps={{
           sx: {
             width: isMobile ? '100%' : 380,
@@ -292,40 +440,101 @@ const Navbar = () => {
             borderRight: '1px solid #1A1A1A',
             borderTop: isMobile ? '1px solid #1A1A1A' : 'none',
             borderRadius: isMobile ? '20px 20px 0 0' : 0,
-            maxHeight: isMobile ? '80vh' : '100vh',
+            maxHeight: isMobile ? '85vh' : '100vh',
+            display: 'flex', flexDirection: 'column',
           },
         }}>
-        <Box sx={{ p: 3 }}>
-          <Typography fontWeight={700} fontSize={18} mb={3}>알림</Typography>
-          <Box sx={{ textAlign: 'center', py: 8 }}>
-            <Typography sx={{ fontSize: 48, mb: 2 }}>🔔</Typography>
-            <Typography color="text.secondary" fontSize={14}>새 알림이 없어요</Typography>
+
+        {/* 헤더 + 필터 */}
+        <Box sx={{ px: 3, pt: 3, pb: 1.5, flexShrink: 0, borderBottom: '1px solid #141414' }}>
+          <Typography fontWeight={700} fontSize={18} mb={2}>알림</Typography>
+          <Box sx={{
+            display: 'flex', gap: 1, overflowX: 'auto', pb: 0.5,
+            '&::-webkit-scrollbar': { display: 'none' },
+          }}>
+            {['모두', '팔로우', '좋아요', '댓글'].map(tab => (
+              <Box key={tab} onClick={() => setNotiTab(tab)}
+                sx={{
+                  px: 1.5, py: 0.5, borderRadius: 20, flexShrink: 0,
+                  cursor: 'pointer',
+                  backgroundColor: notiTab === tab ? '#F0F0F0' : '#1A1A1A',
+                  color: notiTab === tab ? '#0A0A0A' : '#707070',
+                  fontSize: 12, fontWeight: notiTab === tab ? 700 : 400,
+                  border: `1px solid ${notiTab === tab ? '#F0F0F0' : '#2A2A2A'}`,
+                  transition: 'all 0.15s',
+                  '&:hover': { color: notiTab === tab ? '#0A0A0A' : '#C0C0C0' },
+                }}>
+                {tab}
+              </Box>
+            ))}
           </Box>
+        </Box>
+
+        {/* 스크롤 영역 */}
+        <Box sx={{
+          flex: 1, overflowY: 'auto', px: 2, py: 1,
+          '&::-webkit-scrollbar': { width: 3 },
+          '&::-webkit-scrollbar-thumb': { backgroundColor: '#2A2A2A', borderRadius: 4 },
+        }}>
+          {filteredNotifications.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography sx={{ fontSize: 36, mb: 2, opacity: 0.2 }}>🔔</Typography>
+              <Typography color="text.secondary" fontSize={13}>알림이 없어요</Typography>
+            </Box>
+          ) : (
+            <>
+              {thisMonth.length > 0 && (
+                <>
+                  <Typography fontSize={12} fontWeight={700}
+                    sx={{ color: '#505050', px: 1, py: 1.5, letterSpacing: 0.5 }}>
+                    이번 달
+                  </Typography>
+                  {thisMonth.map((n, i) => (
+                    <NotiItem key={`m-${i}`} n={n}
+                      notiIcon={notiIcon} notiText={notiText} timeAgoNoti={timeAgoNoti} />
+                  ))}
+                </>
+              )}
+              {older.length > 0 && (
+                <>
+                  <Typography fontSize={12} fontWeight={700}
+                    sx={{ color: '#505050', px: 1, py: 1.5, mt: 0.5, letterSpacing: 0.5 }}>
+                    이전 활동
+                  </Typography>
+                  {older.map((n, i) => (
+                    <NotiItem key={`o-${i}`} n={n}
+                      notiIcon={notiIcon} notiText={notiText} timeAgoNoti={timeAgoNoti} />
+                  ))}
+                </>
+              )}
+            </>
+          )}
         </Box>
       </Drawer>
 
-      {/* ── 오른쪽 상단 아이콘 (PC) ── */}
+      {/* ── PC 오른쪽 상단 아이콘 ── */}
       {!isMobile && (
         <Box sx={{
-          position: 'fixed', top: 18, right: 28,
+          position: 'fixed', top: 14, right: 20,
           display: 'flex', alignItems: 'center', gap: 0.5,
           zIndex: 100,
         }}>
           <Tooltip title="알림" arrow>
-            <IconButton onClick={() => setNotiOpen(true)}
-              sx={{ color: '#505050', '&:hover': { color: '#F0F0F0', backgroundColor: 'rgba(255,255,255,0.05)' } }}>
+            <IconButton disableRipple onClick={openNoti}
+              sx={{ color: '#505050', '&:hover': { color: '#F0F0F0' } }}>
               <Badge badgeContent={unreadCount} color="error"
-                sx={{ '& .MuiBadge-badge': { fontSize: 10, minWidth: 17, height: 17 } }}>
-                <FavoriteBorderRounded sx={{ fontSize: 26 }} />
+                sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 16, height: 16 } }}>
+                <FavoriteBorderRounded sx={{ fontSize: 24 }} />
               </Badge>
             </IconButton>
           </Tooltip>
           <Tooltip title="채팅" arrow>
-            <IconButton onClick={() => { resetUnreadChat(); navigate('/chat'); }}
-              sx={{ color: '#505050', '&:hover': { color: '#F0F0F0', backgroundColor: 'rgba(255,255,255,0.05)' } }}>
+            <IconButton disableRipple
+              onClick={() => { resetUnreadChat(); navigate('/chat'); }}
+              sx={{ color: '#505050', '&:hover': { color: '#F0F0F0' } }}>
               <Badge badgeContent={chatBadge} color="error" max={99}
-                sx={{ '& .MuiBadge-badge': { fontSize: 10, minWidth: 17, height: 17 } }}>
-                <SendRounded sx={{ fontSize: 24 }} />
+                sx={{ '& .MuiBadge-badge': { fontSize: 9, minWidth: 16, height: 16 } }}>
+                <SendRounded sx={{ fontSize: 22 }} />
               </Badge>
             </IconButton>
           </Tooltip>
@@ -334,11 +543,10 @@ const Navbar = () => {
               src={user?.profile_image ? `http://localhost:5000${user.profile_image}` : null}
               onClick={() => navigate(`/profile/${user?.username}`)}
               sx={{
-                width: 32, height: 32, ml: 0.5, cursor: 'pointer',
+                width: 30, height: 30, ml: 0.5, cursor: 'pointer',
                 bgcolor: '#E8C96D', color: '#0A0A0A',
-                fontSize: 13, fontWeight: 800,
-                border: '2px solid #2A2A2A',
-                transition: 'border-color 0.2s',
+                fontSize: 12, fontWeight: 800,
+                border: '1.5px solid #252525',
                 '&:hover': { borderColor: '#E8C96D' },
               }}>
               {user?.username?.[0]?.toUpperCase()}
@@ -354,6 +562,7 @@ const Navbar = () => {
         mt: isMobile ? '52px' : 0,
         mb: isMobile ? '56px' : 0,
         minHeight: '100vh',
+        maxWidth: isMobile ? '100%' : 'calc(100vw - 72px)',
         transition: 'margin-left 0.25s cubic-bezier(0.4,0,0.2,1)',
       }}>
         <Outlet />
@@ -379,6 +588,4 @@ const Navbar = () => {
       )}
     </Box>
   );
-};
-
-export default Navbar;
+}

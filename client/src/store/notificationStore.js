@@ -1,27 +1,22 @@
 import { create } from 'zustand';
 
-const useNotificationStore = create((set) => ({
-  notifications:  [],
+const useNotificationStore = create((set, get) => ({
   unreadCount:    0,
   unreadChat:     0,
+  notifications:  [],
 
-  setNotifications: (notifications) => set({
-    notifications,
-    unreadCount: notifications.filter(n => !n.is_read).length,
-  }),
-
-  addNotification: (notification) => set((state) => ({
-    notifications: [notification, ...state.notifications],
+  addNotification: (noti) => set(state => ({
     unreadCount:   state.unreadCount + 1,
+    notifications: [noti, ...state.notifications],
   })),
 
-  setUnreadChat: (count) => set({ unreadChat: count }),
+ setNotifications: (list, count) => set({ notifications: list, unreadCount: count }),
 
-  addUnreadChat: () => set((state) => ({ unreadChat: state.unreadChat + 1 })),
-
-  resetUnreadChat: () => set({ unreadChat: 0 }),
-
-  resetUnread: () => set({ unreadCount: 0 }),
+  setUnreadCount:      (n)  => set({ unreadCount: n }),
+  setUnreadChat:       (n)  => set({ unreadChat: n }),
+  incrementUnreadChat: ()   => set(state => ({ unreadChat: state.unreadChat + 1 })),
+  resetUnreadChat:     ()   => set({ unreadChat: 0 }),
+  resetUnreadCount:    ()   => set({ unreadCount: 0 }),
 }));
 
 export default useNotificationStore;

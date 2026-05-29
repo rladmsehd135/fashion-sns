@@ -1,19 +1,34 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
-  Box, Card, CardContent, Typography,
-  TextField, Button, Divider, CircularProgress,
+  Box, Card, CardContent, Typography, TextField,
+  Button, Divider, CircularProgress, InputAdornment, IconButton,
 } from '@mui/material';
-import { Google, EmailRounded, LockRounded } from '@mui/icons-material';
-import { InputAdornment } from '@mui/material';
+import {
+  EmailRounded, LockRounded,
+  VisibilityRounded, VisibilityOffRounded,
+} from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
 import { login } from '../../api/authApi';
+import BrandMark from '../../components/common/BrandMark';
 
-const Login = () => {
-  const navigate    = useNavigate();
+const KakaoIcon = () => (
+  <Box sx={{
+    width: 20, height: 20, borderRadius: '50%',
+    backgroundColor: '#FEE500',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    flexShrink: 0,
+  }}>
+    <Typography sx={{ fontSize: 12, fontWeight: 900, color: '#3A1D1D', lineHeight: 1 }}>K</Typography>
+  </Box>
+);
+
+export default function Login() {
+  const navigate = useNavigate();
   const { setAuth } = useAuthStore();
-  const [form, setForm]       = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
@@ -25,7 +40,7 @@ const Login = () => {
       const res = await login(form);
       localStorage.setItem('accessToken', res.data.accessToken);
       setAuth(res.data.user, res.data.accessToken);
-      toast.success(`${res.data.user.username}님, 환영합니다!`);
+      toast.success(`${res.data.user.username}님, 환영합니다! 👋`);
       navigate('/');
     } catch (err) {
       toast.error(err.response?.data?.message || '로그인에 실패했습니다.');
@@ -36,104 +51,126 @@ const Login = () => {
 
   return (
     <Box sx={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#0A0A0A',
-      p: 2,
-      position: 'relative',
-      overflow: 'hidden',
+      minHeight: '100vh', display: 'flex',
+      alignItems: 'center', justifyContent: 'center',
+      backgroundColor: '#080808', p: 2,
+      overflow: 'hidden', position: 'relative',
       '&::before': {
-        content: '""',
-        position: 'absolute',
-        top: '-20%', left: '50%',
-        transform: 'translateX(-50%)',
-        width: 600, height: 600,
-        background: 'radial-gradient(circle, rgba(232,201,109,0.06) 0%, transparent 70%)',
+        content: '""', position: 'absolute',
+        top: '-15%', left: '40%', width: 600, height: 600,
+        background: 'radial-gradient(circle, rgba(232,201,109,0.055) 0%, transparent 65%)',
         pointerEvents: 'none',
       },
     }}>
-      <Box sx={{ width: '100%', maxWidth: 400, position: 'relative', zIndex: 1 }}>
+      <Box sx={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
+
         {/* 로고 */}
-        <Box sx={{ textAlign: 'center', mb: 5 }}>
-          <Typography variant="h3" fontWeight={900} letterSpacing={6}
-            sx={{
-              background: 'linear-gradient(135deg, #E8C96D, #D4AF37)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              mb: 1,
-            }}>
-            FITLOG
-          </Typography>
-          <Typography variant="body2" sx={{ color: '#404040', letterSpacing: 3, fontSize: 11 }}>
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, mb: 1 }}>
+            <BrandMark size={38} />
+            <Typography fontWeight={900} letterSpacing={5} fontSize={26}
+              sx={{
+                background: 'linear-gradient(135deg,#E8C96D,#D4AF37)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              }}>
+              FITLOG
+            </Typography>
+          </Box>
+          <Typography sx={{ color: '#252525', letterSpacing: 4, fontSize: 9, fontWeight: 500 }}>
             FASHION ARCHIVE SNS
           </Typography>
         </Box>
 
         <Card sx={{
-          background: 'rgba(20,20,20,0.8)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid #1E1E1E',
-          borderRadius: 4,
-          p: 1,
+          background: 'rgba(12,12,12,0.97)',
+          backdropFilter: 'blur(28px)',
+          border: '1px solid #161616',
+          borderRadius: '20px',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
         }}>
-          <CardContent sx={{ p: 3 }}>
-            <Typography variant="h6" fontWeight={700} mb={3}>로그인</Typography>
+          <CardContent sx={{ p: 3.5 }}>
+            <Box sx={{ mb: 3 }}>
+              <Typography fontWeight={800} fontSize={22} letterSpacing={-0.5} mb={0.4}>
+                로그인
+              </Typography>
+              <Typography sx={{ color: '#444', fontSize: 13 }}>
+                계정에 로그인하세요
+              </Typography>
+            </Box>
 
-            <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box component="form" onSubmit={handleSubmit}
+              sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+
               <TextField
                 name="email" label="이메일" type="email"
                 value={form.email} onChange={handleChange}
-                fullWidth required
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <EmailRounded sx={{ color: '#404040', fontSize: 18 }} />
-                    </InputAdornment>
-                  ),
+                fullWidth required autoComplete="email" size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <EmailRounded sx={{ color: '#333', fontSize: 17 }} />
+                      </InputAdornment>
+                    ),
+                  },
                 }}
               />
+
               <TextField
-                name="password" label="비밀번호" type="password"
+                name="password" label="비밀번호"
+                type={showPw ? 'text' : 'password'}
                 value={form.password} onChange={handleChange}
-                fullWidth required
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <LockRounded sx={{ color: '#404040', fontSize: 18 }} />
-                    </InputAdornment>
-                  ),
+                fullWidth required autoComplete="current-password" size="small"
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: '10px' } }}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LockRounded sx={{ color: '#333', fontSize: 17 }} />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowPw(p => !p)} size="small" sx={{ color: '#383838' }}>
+                          {showPw
+                            ? <VisibilityOffRounded sx={{ fontSize: 17 }} />
+                            : <VisibilityRounded sx={{ fontSize: 17 }} />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
               />
+
               <Button type="submit" variant="contained" fullWidth
-                disabled={loading} size="large" sx={{ mt: 1, py: 1.5 }}>
+                disabled={loading} size="large"
+                sx={{ py: 1.4, fontWeight: 700, fontSize: 15, borderRadius: '10px', mt: 0.5 }}>
                 {loading ? <CircularProgress size={22} sx={{ color: '#0A0A0A' }} /> : '로그인'}
               </Button>
             </Box>
 
             <Divider sx={{ my: 3 }}>
-              <Typography variant="caption" color="text.secondary">또는</Typography>
+              <Typography sx={{ color: '#2A2A2A', fontSize: 12 }}>또는</Typography>
             </Divider>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Button variant="outlined" fullWidth startIcon={<Google />}
-                href="http://localhost:5000/api/auth/google"
-                sx={{ py: 1.2, borderColor: '#2A2A2A',
-                  '&:hover': { borderColor: '#4A4A4A', backgroundColor: 'rgba(255,255,255,0.03)' } }}>
-                Google로 계속하기
-              </Button>
-              <Button variant="outlined" fullWidth
-                href="http://localhost:5000/api/auth/kakao"
-                sx={{ py: 1.2, borderColor: '#FEE500', color: '#FEE500',
-                  '&:hover': { backgroundColor: 'rgba(254,229,0,0.05)' } }}>
-                카카오로 계속하기
-              </Button>
-            </Box>
+            <Button
+              onClick={() => { window.location.href = 'http://localhost:5000/api/auth/kakao'; }}
+              fullWidth
+              sx={{
+                py: 1.4, borderRadius: '10px', fontWeight: 700, fontSize: 14,
+                backgroundColor: '#FEE500', color: '#3A1D1D',
+                display: 'flex', alignItems: 'center', gap: 1.5,
+                '&:hover': { backgroundColor: '#F5DC00' },
+              }}>
+              <KakaoIcon />
+              카카오로 계속하기
+            </Button>
 
-            <Typography textAlign="center" mt={3} variant="body2" color="text.secondary">
+            <Typography
+              sx={{ textAlign: 'center', mt: 3, color: '#303030', fontSize: 13 }}>
               아직 계정이 없으신가요?{' '}
-              <Link to="/register" style={{ color: '#E8C96D', fontWeight: 700 }}>
+              <Link to="/register" style={{ color: '#E8C96D', fontWeight: 700, textDecoration: 'none' }}>
                 회원가입
               </Link>
             </Typography>
@@ -142,6 +179,4 @@ const Login = () => {
       </Box>
     </Box>
   );
-};
-
-export default Login;
+}

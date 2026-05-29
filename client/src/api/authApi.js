@@ -11,3 +11,9 @@ export const logout = () =>
 
 export const refreshToken = () =>
   axiosInstance.post('/auth/refresh');
+
+export const sendVerificationCode = (email) =>
+  axiosInstance.post('/auth/send-code', { email });
+
+export const verifyCode = (email, code) =>
+  axiosInstance.post('/auth/verify-code', { email, code });

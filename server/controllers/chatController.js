@@ -26,6 +26,13 @@ const ChatController = {
       io.to(`user_${receiverId}`).emit('chat:request_received', {
         requestId: result.outBinds[0], sender: sender.rows[0],
       });
+      io.to(`user_${receiverId}`).emit('notification:new', {
+        type: 'chat_request',
+        sender_id: req.userId,
+        username: sender.rows[0].username,
+        profile_image: sender.rows[0].profile_image,
+        created_at: new Date().toISOString(),
+      });
       res.status(201).json({ message: '채팅 요청을 보냈습니다.', requestId: result.outBinds[0] });
     } catch (err) {
       next(err);
@@ -61,9 +68,21 @@ const ChatController = {
         [id, request.sender_id, request.receiver_id,
           { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }]
       );
-      const roomId = room.outBinds[0];
-      const io     = req.app.get('io');
+      const roomId   = room.outBinds[0];
+      const acceptor = await db.query(`SELECT username, profile_image FROM users WHERE id = :1`, [req.userId]);
+      await db.query(
+        `INSERT INTO notifications (user_id, sender_id, type) VALUES (:1, :2, 'chat_accepted')`,
+        [request.sender_id, req.userId]
+      );
+      const io = req.app.get('io');
       io.to(`user_${request.sender_id}`).emit('chat:request_accepted', { roomId });
+      io.to(`user_${request.sender_id}`).emit('notification:new', {
+        type: 'chat_accepted',
+        sender_id: req.userId,
+        username: acceptor.rows[0].username,
+        profile_image: acceptor.rows[0].profile_image,
+        created_at: new Date().toISOString(),
+      });
       res.json({ message: '채팅 요청을 수락했습니다.', roomId });
     } catch (err) {
       next(err);

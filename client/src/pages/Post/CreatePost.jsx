@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, TextField, Button, Chip,
@@ -7,8 +7,8 @@ import {
 } from '@mui/material';
 import { AddPhotoAlternate, Close } from '@mui/icons-material';
 import { createPost } from '../../api/postApi';
+import axiosInstance from '../../api/axiosInstance';
 
-const styles     = ['techwear','amekaji','casual','street','workwear','etc'];
 const categories = ['top','bottom','outer','shoes','bag','acc','etc'];
 
 const CreatePost = () => {
@@ -18,8 +18,18 @@ const CreatePost = () => {
   const [previews, setPreviews] = useState([]);
   const [items, setItems]     = useState([]);
   const [tagInput, setTagInput] = useState('');
+  const [styleList, setStyleList] = useState([]);
+  const [stylesLoading, setStylesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
+
+  useEffect(() => {
+    setStylesLoading(true);
+    axiosInstance.get('/users/styles/list')
+      .then(res => setStyleList(res.data))
+      .catch(() => setError('스타일 목록을 불러오지 못했습니다.'))
+      .finally(() => setStylesLoading(false));
+  }, []);
 
   const handleImages = (e) => {
     const files = Array.from(e.target.files);
@@ -111,11 +121,15 @@ const CreatePost = () => {
         <TextField label="내용 *" value={form.content} multiline rows={4}
           onChange={e => setForm(prev => ({ ...prev, content: e.target.value }))} fullWidth required />
 
-        <FormControl fullWidth required>
+        <FormControl fullWidth required disabled={stylesLoading}>
           <InputLabel>스타일</InputLabel>
           <Select value={form.style} label="스타일"
             onChange={e => setForm(prev => ({ ...prev, style: e.target.value }))}>
-            {styles.map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+            {styleList.map(s => (
+              <MenuItem key={s.value} value={s.value}>
+                {s.icon ? `${s.icon} ` : ''}{s.label}
+              </MenuItem>
+            ))}
           </Select>
         </FormControl>
 

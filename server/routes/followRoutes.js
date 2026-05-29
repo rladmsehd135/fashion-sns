@@ -1,6 +1,6 @@
-const router           = require('express').Router();
+const router          = require('express').Router();
 const FollowController = require('../controllers/followController');
-const authMiddleware   = require('../middlewares/authMiddleware');
+const authMiddleware  = require('../middlewares/authMiddleware');
 
 router.post('/:userId', authMiddleware, FollowController.toggle);
 

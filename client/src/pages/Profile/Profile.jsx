@@ -3,53 +3,92 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Avatar, Typography, Button,
   Tab, Tabs, CircularProgress, Chip,
-  Grid,
 } from '@mui/material';
 import {
   GridOnRounded, BookmarkBorderRounded,
 } from '@mui/icons-material';
 import { getProfile, toggleFollow } from '../../api/userApi';
 import { getUserPosts, getMyBookmarks } from '../../api/postApi';
+import { sendRequest, getRooms } from '../../api/chatApi';
 import useAuthStore from '../../store/authStore';
 import PostCard from '../../components/post/PostCard';
 import toast from 'react-hot-toast';
 
 const Profile = () => {
-  const { username }  = useParams();
-  const navigate      = useNavigate();
-  const { user: me }  = useAuthStore();
-  const [profile, setProfile]     = useState(null);
-  const [posts, setPosts]         = useState([]);
+  const { username } = useParams();
+  const navigate = useNavigate();
+  const { user: me } = useAuthStore();
+  const [profile, setProfile] = useState(null);
+  const [posts, setPosts] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
-  const [tab, setTab]             = useState(0);
-  const [loading, setLoading]     = useState(true);
+  const [tab, setTab] = useState(0);
+  const [loading, setLoading] = useState(true);
+
   const isMe = me?.username === username;
 
   useEffect(() => {
-    const load = async () => {
+    let isMounted = true; // 메모리 누수 및 컴포넌트 언마운트 시 상태 변경 방지
+
+    const loadData = async () => {
       setLoading(true);
       try {
-        const res     = await getProfile(username);
+        const res = await getProfile(username);
+        if (!isMounted) return;
         setProfile(res.data);
-        const postRes = await getUserPosts(res.data.id);
-        setPosts(postRes.data);
-        if (isMe) {
-          const bmRes = await getMyBookmarks();
-          setBookmarks(bmRes.data);
+
+        // 게시물과 북마크(본인일 경우)를 병렬로 동시에 호출하여 속도와 안정성을 높입니다.
+        const requests = [getUserPosts(res.data.id)];
+        if (me?.username === username) {
+          requests.push(getMyBookmarks());
         }
+
+        const [postRes, bmRes] = await Promise.all(requests);
+
+        if (!isMounted) return;
+        setPosts(postRes.data || []);
+        if (bmRes) {
+          setBookmarks(bmRes.data || []);
+        }
+      } catch (err) {
+        console.error(err);
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
-    load();
-  }, [username]);
+
+    loadData();
+
+    return () => {
+      isMounted = false; // 클린업 함수
+    };
+  }, [username, me?.username]); // me.username을 의존성에 추가하여 로그인 상태 변경에 안전하게 대응
+
+  const handleMessage = async () => {
+    try {
+      const roomsRes = await getRooms();
+      const existing = roomsRes.data.find(r => r.partner_id === profile.id);
+      if (existing) {
+        navigate('/chat', { state: { openRoomId: existing.id } });
+        return;
+      }
+      await sendRequest(profile.id);
+      toast.success('채팅 요청을 보냈습니다.');
+      navigate('/chat');
+    } catch (err) {
+      if (err.response?.status === 409) {
+        navigate('/chat');
+      } else {
+        toast.error('잠시 후 다시 시도해주세요.');
+      }
+    }
+  };
 
   const handleFollow = async () => {
     try {
       const res = await toggleFollow(profile.id);
       setProfile(prev => ({
         ...prev,
-        is_following:   res.data.following ? 1 : 0,
+        is_following: res.data.following ? 1 : 0,
         follower_count: res.data.following ? prev.follower_count + 1 : prev.follower_count - 1,
       }));
       toast.success(res.data.following ? `${profile.username}님을 팔로우했어요.` : '팔로우를 취소했어요.');
@@ -61,6 +100,7 @@ const Profile = () => {
       <CircularProgress sx={{ color: '#E8C96D' }} size={28} />
     </Box>
   );
+
   if (!profile) return (
     <Box sx={{ textAlign: 'center', pt: 10 }}>
       <Typography>유저를 찾을 수 없어요.</Typography>
@@ -105,9 +145,13 @@ const Profile = () => {
                 {profile.username}
               </Typography>
               {isMe ? (
-                <Button variant="outlined" size="small"
-                  sx={{ borderColor: '#2A2A2A', color: '#F0F0F0', borderRadius: 2, fontWeight: 600,
-                    '&:hover': { borderColor: '#4A4A4A' }, px: 2, py: 0.5, fontSize: 13 }}>
+                <Button size="small" variant="outlined"
+                  onClick={() => navigate('/profile/edit')}
+                  sx={{
+                    borderColor: '#2A2A2A', color: '#F0F0F0',
+                    borderRadius: 2, fontWeight: 600,
+                    '&:hover': { borderColor: '#E8C96D', color: '#E8C96D' }
+                  }}>
                   프로필 수정
                 </Button>
               ) : (
@@ -122,6 +166,7 @@ const Profile = () => {
                     {profile.is_following ? '팔로잉' : '팔로우'}
                   </Button>
                   <Button variant="outlined" size="small"
+                    onClick={handleMessage}
                     sx={{ borderColor: '#2A2A2A', color: '#F0F0F0', borderRadius: 2, fontWeight: 600, px: 2, py: 0.5, fontSize: 13 }}>
                     메시지
                   </Button>
@@ -168,18 +213,48 @@ const Profile = () => {
       </Box>
 
       {/* 탭 */}
-      <Box sx={{ borderTop: '1px solid #1E1E1E' }}>
-        <Tabs value={tab} onChange={(_, v) => setTab(v)} centered
+      {/* 탭 */}
+      <Box sx={{ borderTop: '1px solid #1E1E1E', width: '100%', overflow: 'hidden' }}>
+        <Tabs
+          value={tab}
+          onChange={(_, v) => setTab(v)}
+          centered
           sx={{
-            '& .MuiTab-root': { color: '#505050', minWidth: 80, fontSize: 12, letterSpacing: 1 },
+            minHeight: 48, // 탭 높이 고정
+            '& .MuiTabs-scroller': {
+              overflow: 'hidden !important', // 스크롤러 영역이 터지는 것 방지
+            },
+            '& .MuiTab-root': {
+              color: '#505050',
+              minWidth: 80,
+              fontSize: 12,
+              letterSpacing: 1,
+              minHeight: 48,
+              padding: '12px 16px',
+              overflow: 'hidden', // 탭 내부가 부풀어 오르는 것 방지
+            },
             '& .Mui-selected': { color: '#F0F0F0' },
-            '& .MuiTabs-indicator': { backgroundColor: '#F0F0F0', height: 1, top: 0, bottom: 'auto' },
-          }}>
-          <Tab icon={<GridOnRounded sx={{ fontSize: 20 }} />} label="게시물"
-            iconPosition="start" sx={{ gap: 0.5 }} />
+            '& .MuiTabs-indicator': {
+              backgroundColor: '#F0F0F0',
+              height: '2px', // 높이를 명확한 px로 지정
+              top: 0,
+              bottom: 'auto'
+            },
+          }}
+        >
+          <Tab
+            icon={<GridOnRounded sx={{ fontSize: 20, display: 'block' }} />} // 아이콘 display 고정
+            label="게시물"
+            iconPosition="start"
+            sx={{ gap: 0.5 }}
+          />
           {isMe && (
-            <Tab icon={<BookmarkBorderRounded sx={{ fontSize: 20 }} />} label="저장됨"
-              iconPosition="start" sx={{ gap: 0.5 }} />
+            <Tab
+              icon={<BookmarkBorderRounded sx={{ fontSize: 20, display: 'block' }} />}
+              label="저장됨"
+              iconPosition="start"
+              sx={{ gap: 0.5 }}
+            />
           )}
         </Tabs>
       </Box>

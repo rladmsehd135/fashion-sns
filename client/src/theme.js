@@ -13,18 +13,24 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: '"Pretendard", "Noto Sans KR", sans-serif',
+    fontSize: 15,
     h1: { fontWeight: 800, letterSpacing: '-0.02em' },
     h2: { fontWeight: 700, letterSpacing: '-0.01em' },
     h3: { fontWeight: 700 },
     h4: { fontWeight: 600 },
     h5: { fontWeight: 600 },
     h6: { fontWeight: 600 },
-    body1: { fontSize: '0.95rem', lineHeight: 1.6 },
-    body2: { fontSize: '0.875rem', lineHeight: 1.5 },
-    caption: { fontSize: '0.75rem', color: '#808080' },
+    body1: { fontSize: '1rem', lineHeight: 1.6 },
+    body2: { fontSize: '0.925rem', lineHeight: 1.5 },
+    caption: { fontSize: '0.8rem', color: '#808080' },
   },
   shape: { borderRadius: 12 },
   components: {
+    MuiButtonBase: {
+      defaultProps: {
+        disableRipple: true,
+      },
+    },
     MuiCssBaseline: {
       styleOverrides: {
         body: { backgroundColor: '#0A0A0A', scrollbarWidth: 'thin' },

@@ -9,7 +9,7 @@ const useAuth = () => {
     const token = localStorage.getItem('accessToken');
     if (token && !isLoggedIn) {
       axiosInstance.get('/users/me')
-        .then(res => setAuth(res.data, token))
+        .then(res => setAuth(res.data, localStorage.getItem('accessToken')))
         .catch(() => {
           localStorage.removeItem('accessToken');
           logout();

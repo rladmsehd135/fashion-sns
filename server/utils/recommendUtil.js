@@ -30,6 +30,8 @@ const getRecommendedFeed = async (userId, page = 1, limit = 10) => {
              u.username, u.profile_image,
              (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = :1) AS is_liked,
              (SELECT COUNT(*) FROM bookmarks WHERE post_id = p.id AND user_id = :2) AS is_bookmarked,
+             (SELECT image_url FROM post_images WHERE post_id = p.id AND sort_order = 0
+              FETCH FIRST 1 ROWS ONLY) AS thumbnail,
              (
                (p.likes_count * 3)
                + (p.comments_count * 5)

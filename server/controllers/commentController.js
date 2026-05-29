@@ -1,37 +1,52 @@
-const db       = require('../config/db');
+const db = require('../config/db');
 const oracledb = require('oracledb');
 
 const CommentController = {
 
   create: async (req, res, next) => {
     try {
-      const { id: postId }      = req.params;
       const { content, parent_id } = req.body;
-      if (!content) return res.status(400).json({ message: '내용을 입력해주세요.' });
-      const result = await db.query(
-        `INSERT INTO comments (post_id, user_id, content, parent_id)
-         VALUES (:1, :2, :3, :4) RETURNING id INTO :5`,
-        [postId, req.userId, content, parent_id || null,
-          { dir: oracledb.BIND_OUT, type: oracledb.NUMBER }]
-      );
-      await db.query(`UPDATE posts SET comments_count = comments_count + 1 WHERE id = :1`, [postId]);
-      // 알림
-      const post = await db.query(`SELECT user_id FROM posts WHERE id = :1`, [postId]);
-      if (post.rows[0] && post.rows[0].user_id !== req.userId) {
-        await db.query(
-          `INSERT INTO notifications (user_id, sender_id, type, post_id, comment_id)
-           VALUES (:1, :2, 'comment', :3, :4)`,
-          [post.rows[0].user_id, req.userId, postId, result.outBinds[0]]
-        );
-        const io = req.app.get('io');
-        io.to(`user_${post.rows[0].user_id}`).emit('notification:new', { type: 'comment' });
+      if (!content?.trim()) {
+        return res.status(400).json({ message: '댓글 내용을 입력해주세요.' });
       }
-      res.status(201).json({ message: '댓글이 작성되었습니다.', commentId: result.outBinds[0] });
-    } catch (err) {
-      next(err);
-    }
-  },
+      const result = await db.query(
+        `INSERT INTO comments (post_id, user_id, parent_id, content)
+       VALUES (:1, :2, :3, :4) RETURNING id INTO :5`,
+        [req.params.id, req.userId, parent_id || null, content.trim(),
+        { dir: require('oracledb').BIND_OUT, type: require('oracledb').NUMBER }]
+      );
+      await db.query(
+        `UPDATE posts SET comments_count = comments_count + 1 WHERE id = :1`,
+        [req.params.id]
+      );
 
+      // 유저 정보 포함해서 반환
+      const commentId = result.outBinds;
+      const newComment = await db.query(
+        `SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at,
+              u.username, u.profile_image
+       FROM comments c JOIN users u ON u.id = c.user_id
+       WHERE c.id = :1`,
+        [commentId]
+      );
+
+      res.status(201).json(newComment.rows[0] || { id: commentId, content, created_at: new Date() });
+    } catch (err) { next(err); }
+  },
+  getComments: async (req, res, next) => {
+    try {
+      const result = await db.query(
+        `SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content,
+              c.is_deleted, c.created_at,
+              u.username, u.profile_image
+       FROM comments c JOIN users u ON u.id = c.user_id
+       WHERE c.post_id = :1 AND c.is_deleted = 0
+       ORDER BY c.created_at ASC`,
+        [req.params.id]
+      );
+      res.json(result.rows);
+    } catch (err) { next(err); }
+  },
   getByPost: async (req, res, next) => {
     try {
       const result = await db.query(
@@ -50,9 +65,9 @@ const CommentController = {
 
   update: async (req, res, next) => {
     try {
-      const { id }      = req.params;
+      const { id } = req.params;
       const { content } = req.body;
-      const comment     = await db.query(`SELECT * FROM comments WHERE id = :1`, [id]);
+      const comment = await db.query(`SELECT * FROM comments WHERE id = :1`, [id]);
       if (!comment.rows[0]) return res.status(404).json({ message: '댓글을 찾을 수 없습니다.' });
       if (comment.rows[0].user_id !== req.userId) return res.status(403).json({ message: '권한이 없습니다.' });
       await db.query(`UPDATE comments SET content = :1 WHERE id = :2`, [content, id]);

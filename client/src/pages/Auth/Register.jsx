@@ -1,50 +1,181 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Box, Card, CardContent, Typography,
   TextField, Button, CircularProgress,
-  InputAdornment, Chip,
+  InputAdornment, IconButton,
 } from '@mui/material';
-import { PersonRounded, EmailRounded, LockRounded } from '@mui/icons-material';
+import {
+  PersonRounded, EmailRounded, LockRounded,
+  VisibilityRounded, VisibilityOffRounded,
+  CheckCircleRounded as CheckIcon,
+} from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import { register } from '../../api/authApi';
+import axiosInstance from '../../api/axiosInstance';
+import BrandMark from '../../components/common/BrandMark';
 
-const styles = [
-  { label: '테크웨어', value: 'techwear', emoji: '🥷' },
-  { label: '아메카지', value: 'amekaji',  emoji: '🧢' },
-  { label: '캐주얼',   value: 'casual',   emoji: '👕' },
-  { label: '스트릿',   value: 'street',   emoji: '🔥' },
-  { label: '워크웨어', value: 'workwear', emoji: '🧥' },
-  { label: '기타',     value: 'etc',      emoji: '✨' },
-];
+const getStrength = (pw) => {
+  if (!pw) return { score: 0, label: '', color: 'transparent', bg: 'transparent' };
+  let s = 0;
+  if (pw.length >= 8) s++;
+  if (/[A-Z]/.test(pw)) s++;
+  if (/[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  const map = [
+    { score: 1, label: '취약', color: '#FF4D4D', bg: 'rgba(255,77,77,0.1)' },
+    { score: 2, label: '보통', color: '#FF8C00', bg: 'rgba(255,140,0,0.1)' },
+    { score: 3, label: '강함', color: '#4CAF50', bg: 'rgba(76,175,80,0.1)' },
+    { score: 4, label: '매우 강함', color: '#00BCD4', bg: 'rgba(0,188,212,0.1)' },
+  ];
+  return map[s - 1] || { score: 0, label: '', color: 'transparent', bg: 'transparent' };
+};
 
-const Register = () => {
+const inputSx = {
+  '& .MuiOutlinedInput-root': { borderRadius: '10px' },
+  '& .MuiInputLabel-root': { fontSize: 14 },
+};
+
+const styleColors = {
+  techwear: '#4FC3F7', amekaji: '#FFB74D', casual: '#81C784',
+  street: '#F06292', workwear: '#CE93D8', oldmoney: '#E8C96D',
+};
+
+export default function Register() {
   const navigate = useNavigate();
-  const [step, setStep]         = useState(1); // 1: 기본정보, 2: 스타일 선택
-  const [form, setForm]         = useState({ username: '', email: '', password: '', confirm: '' });
-  const [selectedStyle, setSelectedStyle] = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({ username: '', email: '', password: '', confirm: '' });
+  const [selected, setSelected] = useState([]);
+  const [styleList, setStyleList] = useState([]);
+  const [stylesLoading, setStylesLoading] = useState(false);
+  const [showPw, setShowPw] = useState(false);
+  const [showCf, setShowCf] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [available, setAvailable] = useState(null);
+  
+  // 이메일 인증 관련 상태
+  const [codeSent, setCodeSent] = useState(false);
+  const [code, setCode] = useState('');
+  const [verified, setVerified] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [countdown, setCountdown] = useState(0);
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const strength = useMemo(() => getStrength(form.password), [form.password]);
+
+  // 인증 코드 카운트다운
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [countdown]);
+
+  // DB에서 스타일 목록 불러오기
+  useEffect(() => {
+    setStylesLoading(true);
+    axiosInstance.get('/users/styles/list')
+      .then(res => setStyleList(res.data))
+      .catch(() => toast.error('스타일 목록을 불러오지 못했어요.'))
+      .finally(() => setStylesLoading(false));
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'password' || name === 'confirm') {
+      setForm(p => ({ ...p, [name]: value.replace(/\s/g, '') }));
+    } else if (name === 'username') {
+      setAvailable(null);
+      setForm(p => ({ ...p, username: value }));
+    } else if (name === 'email') {
+      setForm(p => ({ ...p, email: value }));
+      setVerified(false);
+      setCodeSent(false);
+      setCountdown(0);
+    } else {
+      setForm(p => ({ ...p, [name]: value }));
+    }
+  };
+
+  const checkUsername = useCallback(async () => {
+    if (!form.username.trim()) return toast.error('닉네임을 입력해주세요.');
+    setChecking(true);
+    try {
+      const res = await axiosInstance.get(`/users/check-username?username=${form.username.trim()}`);
+      setAvailable(res.data.available);
+      if (res.data.available) toast.success('사용 가능한 닉네임이에요!');
+      else toast.error('이미 사용 중인 닉네임이에요.');
+    } catch {
+      toast.error('확인 중 오류가 발생했어요.');
+    } finally {
+      setChecking(false);
+    }
+  }, [form.username]);
+
+  const handleSendCode = async () => {
+    if (!form.email.trim()) return toast.error('이메일을 입력해주세요.');
+    setSendingCode(true);
+    try {
+      const { sendVerificationCode } = await import('../../api/authApi');
+      await sendVerificationCode(form.email.trim());
+      setCodeSent(true);
+      setCountdown(300); // 5분
+      toast.success('인증코드가 발송되었어요!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || '발송에 실패했어요.');
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!code.trim()) return toast.error('인증코드를 입력해주세요.');
+    setVerifyingCode(true);
+    try {
+      const { verifyCode } = await import('../../api/authApi');
+      await verifyCode(form.email.trim(), code.trim());
+      setVerified(true);
+      toast.success('이메일 인증 완료! ✅');
+    } catch (err) {
+      toast.error(err.response?.data?.message || '인증에 실패했어요.');
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  const toggleStyle = (value) => {
+    setSelected(prev => {
+      if (prev.includes(value)) return prev.filter(s => s !== value);
+      if (prev.length >= 3) { toast.error('최대 3개까지 선택할 수 있어요.'); return prev; }
+      return [...prev, value];
+    });
+  };
 
   const handleNext = (e) => {
     e.preventDefault();
-    if (form.password !== form.confirm) return toast.error('비밀번호가 일치하지 않습니다.');
-    if (form.password.length < 6) return toast.error('비밀번호는 6자 이상이어야 합니다.');
+    if (!form.username.trim()) return toast.error('닉네임을 입력해주세요.');
+    if (available !== true) return toast.error('닉네임 중복 확인을 해주세요.');
+    if (!form.email.trim()) return toast.error('이메일을 입력해주세요.');
+    if (!verified) return toast.error('이메일 인증을 완료해주세요.');
+    if (form.password.length < 8) return toast.error('비밀번호는 8자 이상이어야 해요.');
+    if (strength.score < 2) return toast.error('더 강한 비밀번호를 사용해주세요.');
+    if (form.password !== form.confirm) return toast.error('비밀번호가 일치하지 않아요.');
     setStep(2);
   };
 
   const handleSubmit = async () => {
-    if (!selectedStyle) return toast.error('스타일을 선택해주세요.');
+    if (selected.length === 0) return toast.error('스타일을 최소 1개 선택해주세요.');
     setLoading(true);
     try {
       await register({
-        username: form.username,
-        email: form.email,
+        username: form.username.trim(),
+        email: form.email.trim(),
         password: form.password,
-        preferred_style: selectedStyle,
+        preferred_style: selected[0],
+        style_1: selected[1] || null,
+        style_2: selected[2] || null,
       });
-      toast.success('환영합니다! 🎉');
+      toast.success('환영합니다! 취향 저격 코디들이 기다려요 🎉');
       navigate('/login');
     } catch (err) {
       toast.error(err.response?.data?.message || '회원가입에 실패했습니다.');
@@ -58,123 +189,410 @@ const Register = () => {
     <Box sx={{
       minHeight: '100vh', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
-      backgroundColor: '#0A0A0A', p: 2,
-      position: 'relative', overflow: 'hidden',
+      backgroundColor: '#080808', p: 2,
+      overflow: 'hidden', position: 'relative',
       '&::before': {
         content: '""', position: 'absolute',
-        top: '-20%', left: '50%', transform: 'translateX(-50%)',
-        width: 600, height: 600,
-        background: 'radial-gradient(circle, rgba(232,201,109,0.06) 0%, transparent 70%)',
+        top: '-15%', left: '40%', width: 600, height: 600,
+        background: 'radial-gradient(circle, rgba(232,201,109,0.055) 0%, transparent 65%)',
         pointerEvents: 'none',
       },
     }}>
-      <Box sx={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
+      <Box sx={{ width: '100%', maxWidth: 460, position: 'relative', zIndex: 1 }}>
+
         {/* 로고 */}
         <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Typography variant="h3" fontWeight={900} letterSpacing={6}
-            sx={{
-              background: 'linear-gradient(135deg, #E8C96D, #D4AF37)',
-              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', mb: 0.5,
-            }}>
-            FITLOG
-          </Typography>
-          <Typography sx={{ color: '#333', letterSpacing: 3, fontSize: 10 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, mb: 1 }}>
+            <BrandMark size={38} />
+            <Typography fontWeight={900} letterSpacing={5} fontSize={26}
+              sx={{
+                background: 'linear-gradient(135deg,#E8C96D,#D4AF37)',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              }}>
+              FITLOG
+            </Typography>
+          </Box>
+          <Typography sx={{ color: '#252525', letterSpacing: 4, fontSize: 9, fontWeight: 500 }}>
             FASHION ARCHIVE SNS
           </Typography>
         </Box>
 
         {/* 스텝 인디케이터 */}
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}>
-          {[1,2].map(s => (
+        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3.5 }}>
+          {[1, 2].map(s => (
             <Box key={s} sx={{
-              width: s === step ? 24 : 8, height: 8, borderRadius: 4,
-              backgroundColor: s === step ? '#E8C96D' : s < step ? '#E8C96D80' : '#2A2A2A',
-              transition: 'all 0.3s ease',
+              height: 3, borderRadius: 2,
+              width: s === step ? 36 : 12,
+              backgroundColor: s <= step ? '#E8C96D' : '#1E1E1E',
+              transition: 'all 0.35s cubic-bezier(0.4,0,0.2,1)',
             }} />
           ))}
         </Box>
 
         <Card sx={{
-          background: 'rgba(16,16,16,0.9)',
-          backdropFilter: 'blur(20px)',
-          border: '1px solid #1E1E1E',
-          borderRadius: 4, p: 1,
+          background: 'rgba(12,12,12,0.97)',
+          backdropFilter: 'blur(28px)',
+          border: '1px solid #161616',
+          borderRadius: '20px',
+          boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
         }}>
-          <CardContent sx={{ p: 3 }}>
+          <CardContent sx={{ p: 3.5 }}>
 
-            {/* STEP 1 — 기본 정보 */}
+            {/* ── STEP 1 ── */}
             {step === 1 && (
               <>
-                <Typography fontWeight={700} fontSize={18} mb={0.5}>계정 만들기</Typography>
-                <Typography variant="body2" color="text.secondary" mb={3}>기본 정보를 입력해주세요</Typography>
-                <Box component="form" onSubmit={handleNext} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  <TextField name="username" label="닉네임" value={form.username} onChange={handleChange} fullWidth required
-                    InputProps={{ startAdornment: <InputAdornment position="start"><PersonRounded sx={{ color: '#333', fontSize: 18 }} /></InputAdornment> }} />
-                  <TextField name="email" label="이메일" type="email" value={form.email} onChange={handleChange} fullWidth required
-                    InputProps={{ startAdornment: <InputAdornment position="start"><EmailRounded sx={{ color: '#333', fontSize: 18 }} /></InputAdornment> }} />
-                  <TextField name="password" label="비밀번호" type="password" value={form.password} onChange={handleChange} fullWidth required
-                    InputProps={{ startAdornment: <InputAdornment position="start"><LockRounded sx={{ color: '#333', fontSize: 18 }} /></InputAdornment> }} />
-                  <TextField name="confirm" label="비밀번호 확인" type="password" value={form.confirm} onChange={handleChange} fullWidth required
-                    InputProps={{ startAdornment: <InputAdornment position="start"><LockRounded sx={{ color: '#333', fontSize: 18 }} /></InputAdornment> }} />
-                  <Button type="submit" variant="contained" fullWidth size="large" sx={{ mt: 1, py: 1.5, fontWeight: 700 }}>
-                    다음
+                <Box sx={{ mb: 3 }}>
+                  <Typography fontWeight={800} fontSize={22} letterSpacing={-0.5} mb={0.4}>
+                    계정 만들기
+                  </Typography>
+                  <Typography sx={{ color: '#444', fontSize: 13 }}>
+                    기본 정보를 입력해주세요
+                  </Typography>
+                </Box>
+
+                <Box component="form" onSubmit={handleNext}
+                  sx={{ display: 'flex', flexDirection: 'column', gap: 2.2 }}>
+
+                  {/* 닉네임 + 중복확인 */}
+                  <Box>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <TextField
+                        name="username" label="닉네임"
+                        value={form.username} onChange={handleChange}
+                        fullWidth required autoComplete="off" size="small"
+                        sx={{
+                          ...inputSx,
+                          '& .MuiOutlinedInput-root fieldset': {
+                            borderColor:
+                              available === true ? '#4CAF50' :
+                                available === false ? '#FF4D4D' : undefined,
+                          },
+                        }}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                {available === true
+                                  ? <CheckIcon sx={{ color: '#4CAF50', fontSize: 17 }} />
+                                  : <PersonRounded sx={{ color: '#333', fontSize: 17 }} />}
+                              </InputAdornment>
+                            ),
+                          }
+                        }}
+                      />
+                      <Button
+                        variant="outlined"
+                        onClick={checkUsername}
+                        disabled={checking || !form.username.trim()}
+                        sx={{
+                          height: 40, px: 2, flexShrink: 0,
+                          borderColor: '#232323', color: '#808080',
+                          fontSize: 12, fontWeight: 600,
+                          borderRadius: '10px', whiteSpace: 'nowrap',
+                          '&:hover': { borderColor: '#E8C96D', color: '#E8C96D', backgroundColor: 'rgba(232,201,109,0.04)' },
+                        }}>
+                        {checking ? <CircularProgress size={13} /> : '중복확인'}
+                      </Button>
+                    </Box>
+                    {available !== null && (
+                      <Typography sx={{
+                        fontSize: 11, mt: 0.5, pl: 0.5,
+                        color: available ? '#4CAF50' : '#FF4D4D',
+                      }}>
+                        {available ? '✓ 사용 가능한 닉네임이에요' : '✗ 이미 사용 중인 닉네임이에요'}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  {/* 이메일 */}
+                  <Box>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <TextField
+                          name="email" label="이메일" type="email"
+                          value={form.email} onChange={handleChange}
+                          fullWidth required autoComplete="off" size="small"
+                          disabled={verified}
+                          sx={{
+                            ...inputSx,
+                            '& .MuiOutlinedInput-root fieldset': {
+                              borderColor: verified ? '#4CAF50' : undefined,
+                            },
+                          }}
+                          slotProps={{
+                            input: {
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  {verified 
+                                    ? <CheckIcon sx={{ color: '#4CAF50', fontSize: 17 }} />
+                                    : <EmailRounded sx={{ color: '#333', fontSize: 17 }} />}
+                                </InputAdornment>
+                              ),
+                            },
+                          }}
+                        />
+                      </Box>
+                      {!verified && (
+                        <Button
+                          variant="outlined"
+                          onClick={handleSendCode}
+                          disabled={sendingCode || !form.email.trim() || countdown > 0}
+                          sx={{
+                            height: 40, px: 2, flexShrink: 0,
+                            borderColor: '#232323', color: '#808080',
+                            fontSize: 12, fontWeight: 600,
+                            borderRadius: '10px',
+                            '&:hover': { borderColor: '#E8C96D', color: '#E8C96D' },
+                          }}>
+                          {sendingCode ? <CircularProgress size={13} /> : 
+                           countdown > 0 ? `${Math.floor(countdown/60)}:${String(countdown%60).padStart(2,'0')}` :
+                           codeSent ? '재발송' : '인증'}
+                        </Button>
+                      )}
+                    </Box>
+                    
+                    {codeSent && !verified && (
+                      <Box sx={{ display: 'flex', gap: 1, mt: 1.5 }}>
+                        <TextField
+                          label="인증코드 6자리"
+                          value={code}
+                          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                          fullWidth size="small"
+                          sx={{ ...inputSx, '& input': { letterSpacing: 8, fontWeight: 700, textAlign: 'center' } }}
+                        />
+                        <Button
+                          variant="outlined"
+                          onClick={handleVerifyCode}
+                          disabled={verifyingCode || code.length !== 6}
+                          sx={{
+                            height: 40, px: 2, flexShrink: 0,
+                            borderColor: '#232323', color: '#808080',
+                            borderRadius: '10px',
+                            '&:hover': { borderColor: '#4CAF50', color: '#4CAF50' },
+                          }}>
+                          {verifyingCode ? <CircularProgress size={13} /> : '확인'}
+                        </Button>
+                      </Box>
+                    )}
+                    {verified && (
+                      <Typography sx={{ fontSize: 11, mt: 0.5, pl: 0.5, color: '#4CAF50' }}>
+                        ✓ 이메일 인증이 완료되었어요
+                      </Typography>
+                    )}
+                  </Box>
+
+                  {/* 비밀번호 */}
+                  <Box>
+                    <TextField
+                      name="password" label="비밀번호"
+                      type={showPw ? 'text' : 'password'}
+                      value={form.password} onChange={handleChange}
+                      fullWidth required autoComplete="new-password" size="small"
+                      sx={inputSx}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockRounded sx={{ color: '#333', fontSize: 17 }} />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton onClick={() => setShowPw(p => !p)} size="small" sx={{ color: '#383838' }}>
+                              {showPw
+                                ? <VisibilityOffRounded sx={{ fontSize: 17 }} />
+                                : <VisibilityRounded sx={{ fontSize: 17 }} />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                    {form.password && (
+                      <Box sx={{ mt: 1 }}>
+                        <Box sx={{ display: 'flex', gap: 0.5, mb: 0.6 }}>
+                          {[1, 2, 3, 4].map(i => (
+                            <Box key={i} sx={{
+                              flex: 1, height: 3, borderRadius: 2,
+                              backgroundColor: i <= strength.score ? strength.color : '#1A1A1A',
+                              transition: 'background-color 0.3s ease',
+                            }} />
+                          ))}
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Box sx={{
+                            display: 'inline-flex',
+                            px: 1, py: 0.2, borderRadius: 6,
+                            backgroundColor: strength.bg,
+                          }}>
+                            <Typography sx={{ color: strength.color, fontWeight: 700, fontSize: 11 }}>
+                              {strength.label}
+                            </Typography>
+                          </Box>
+                          <Typography sx={{ color: '#2A2A2A', fontSize: 10 }}>
+                            대문자 · 숫자 · 특수문자 포함 시 강해져요
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
+                  </Box>
+
+                  {/* 비밀번호 확인 */}
+                  <Box>
+                    <TextField
+                      name="confirm" label="비밀번호 확인"
+                      type={showCf ? 'text' : 'password'}
+                      value={form.confirm} onChange={handleChange}
+                      fullWidth required autoComplete="new-password" size="small"
+                      sx={{
+                        ...inputSx,
+                        '& .MuiOutlinedInput-root fieldset': {
+                          borderColor:
+                            form.confirm && form.password === form.confirm ? '#4CAF50' :
+                              form.confirm ? '#FF4D4D' : undefined,
+                        },
+                      }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            {form.confirm && form.password === form.confirm
+                              ? <CheckIcon sx={{ color: '#4CAF50', fontSize: 17 }} />
+                              : <LockRounded sx={{ color: '#333', fontSize: 17 }} />}
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton onClick={() => setShowCf(p => !p)} size="small" sx={{ color: '#383838' }}>
+                              {showCf
+                                ? <VisibilityOffRounded sx={{ fontSize: 17 }} />
+                                : <VisibilityRounded sx={{ fontSize: 17 }} />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                    {form.confirm && form.password !== form.confirm && (
+                      <Typography sx={{ color: '#FF4D4D', fontSize: 11, mt: 0.5, pl: 0.5 }}>
+                        비밀번호가 일치하지 않아요
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Button type="submit" variant="contained" fullWidth
+                    sx={{ mt: 0.5, py: 1.4, fontWeight: 700, fontSize: 15, borderRadius: '10px' }}>
+                    다음 단계 →
                   </Button>
                 </Box>
               </>
             )}
 
-            {/* STEP 2 — 스타일 선택 */}
+            {/* ── STEP 2 ── */}
             {step === 2 && (
               <>
-                <Typography fontWeight={700} fontSize={18} mb={0.5}>스타일 선택</Typography>
-                <Typography variant="body2" color="text.secondary" mb={3}>
-                  선호하는 패션 스타일을 선택해주세요.<br />
-                  비슷한 취향의 유저들을 추천해드려요!
-                </Typography>
-
-                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 1.5, mb: 3 }}>
-                  {styles.map(s => (
-                    <Box key={s.value}
-                      onClick={() => setSelectedStyle(s.value)}
-                      sx={{
-                        p: 2, borderRadius: 3, cursor: 'pointer',
-                        border: `1.5px solid ${selectedStyle === s.value ? '#E8C96D' : '#1E1E1E'}`,
-                        backgroundColor: selectedStyle === s.value ? 'rgba(232,201,109,0.08)' : '#111',
-                        transition: 'all 0.2s ease',
-                        textAlign: 'center',
-                        '&:hover': { borderColor: '#3A3A3A', backgroundColor: '#1A1A1A' },
+                <Box sx={{ mb: 2.5 }}>
+                  <Typography fontWeight={800} fontSize={22} letterSpacing={-0.5} mb={0.4}>
+                    나의 스타일은?
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Typography sx={{ color: '#444', fontSize: 13 }}>
+                      최대 3개까지 선택할 수 있어요
+                    </Typography>
+                    <Box sx={{
+                      px: 1.5, py: 0.3, borderRadius: 10,
+                      backgroundColor: selected.length > 0 ? 'rgba(232,201,109,0.08)' : '#111',
+                      border: `1px solid ${selected.length > 0 ? '#E8C96D40' : '#1E1E1E'}`,
+                      transition: 'all 0.2s',
+                    }}>
+                      <Typography fontWeight={700} sx={{
+                        fontSize: 11,
+                        color: selected.length > 0 ? '#E8C96D' : '#333',
                       }}>
-                      <Typography fontSize={28} mb={0.5}>{s.emoji}</Typography>
-                      <Typography variant="body2" fontWeight={selectedStyle === s.value ? 700 : 400}
-                        color={selectedStyle === s.value ? '#E8C96D' : '#C0C0C0'}>
-                        {s.label}
+                        {selected.length} / 3
                       </Typography>
                     </Box>
-                  ))}
+                  </Box>
                 </Box>
 
+                {/* 스타일 그리드 */}
+                {stylesLoading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+                    <CircularProgress sx={{ color: '#E8C96D' }} size={28} />
+                  </Box>
+                ) : (
+                  <Box sx={{
+                    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)',
+                    gap: 1.2, mb: 3,
+                    maxHeight: 380, overflowY: 'auto',
+                    pr: 0.5,
+                    '&::-webkit-scrollbar': { width: 3 },
+                    '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
+                    '&::-webkit-scrollbar-thumb': { backgroundColor: '#2A2A2A', borderRadius: 4 },
+                  }}>
+                    {styleList.map(s => {
+                      const on = selected.includes(s.value);
+                      return (
+                        <Box key={s.value} onClick={() => toggleStyle(s.value)}
+                          sx={{
+                            p: 1.5, borderRadius: '12px', cursor: 'pointer',
+                            border: `1.5px solid ${on ? '#E8C96D' : '#181818'}`,
+                            backgroundColor: on ? 'rgba(232,201,109,0.06)' : '#0C0C0C',
+                            position: 'relative', textAlign: 'center',
+                            transition: 'all 0.18s ease',
+                            '&:hover': {
+                              borderColor: on ? '#E8C96D' : '#282828',
+                              backgroundColor: on ? 'rgba(232,201,109,0.09)' : '#121212',
+                              transform: 'translateY(-1px)',
+                            },
+                          }}>
+                          {on && (
+                            <CheckIcon sx={{
+                              position: 'absolute', top: 6, right: 6,
+                              fontSize: 13, color: '#E8C96D',
+                            }} />
+                          )}
+                          <Typography fontSize={22} sx={{ lineHeight: 1, mb: 0.6 }}>
+                            {s.icon}
+                          </Typography>
+                          <Typography fontWeight={on ? 700 : 500} fontSize={11}
+                            sx={{ color: on ? '#E8C96D' : '#C0C0C0', mb: 0.2, lineHeight: 1.2 }}>
+                            {s.label}
+                          </Typography>
+                          <Typography sx={{ color: '#303030', fontSize: 9, lineHeight: 1.3 }}>
+                            {s.description}
+                          </Typography>
+                        </Box>
+                      );
+                    })}
+                  </Box>
+                )}
+
                 <Box sx={{ display: 'flex', gap: 1.5 }}>
-                  <Button variant="outlined" fullWidth onClick={() => setStep(1)}
-                    sx={{ py: 1.5, borderColor: '#2A2A2A', color: '#A0A0A0' }}>
+                  <Button variant="outlined" onClick={() => setStep(1)}
+                    sx={{
+                      flex: 1, py: 1.4, borderColor: '#1A1A1A',
+                      color: '#606060', borderRadius: '10px',
+                      '&:hover': { borderColor: '#2A2A2A' },
+                    }}>
                     이전
                   </Button>
-                  <Button variant="contained" fullWidth onClick={handleSubmit}
-                    disabled={!selectedStyle || loading} size="large" sx={{ py: 1.5, fontWeight: 700 }}>
-                    {loading ? <CircularProgress size={22} sx={{ color: '#0A0A0A' }} /> : '시작하기 🎉'}
+                  <Button variant="contained" onClick={handleSubmit}
+                    disabled={selected.length === 0 || loading || stylesLoading}
+                    sx={{ flex: 2, py: 1.4, fontWeight: 700, fontSize: 15, borderRadius: '10px' }}>
+                    {loading
+                      ? <CircularProgress size={22} sx={{ color: '#0A0A0A' }} />
+                      : '시작하기 🎉'}
                   </Button>
                 </Box>
               </>
             )}
 
-            <Typography textAlign="center" mt={3} variant="body2" color="text.secondary">
+            <Typography textAlign="center" mt={3} sx={{ color: '#303030', fontSize: 13 }}>
               이미 계정이 있으신가요?{' '}
-              <Link to="/login" style={{ color: '#E8C96D', fontWeight: 700 }}>로그인</Link>
+              <Link to="/login" style={{ color: '#E8C96D', fontWeight: 700, textDecoration: 'none' }}>
+                로그인
+              </Link>
             </Typography>
           </CardContent>
         </Card>
       </Box>
     </Box>
   );
-};
-
-export default Register;
+}

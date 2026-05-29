@@ -1,29 +1,106 @@
+const { sendVerificationCode } = require('../utils/mailer');
 const bcrypt = require('bcryptjs');
-const jwt    = require('jsonwebtoken');
-const db     = require('../config/db');
+const jwt = require('jsonwebtoken');
+const db = require('../config/db');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 const { refreshSecret } = require('../config/jwt');
+const verificationCodes = new Map();
 
 const AuthController = {
 
+  // 인증코드 발송
+  sendCode: async (req, res, next) => {
+    try {
+      const { email } = req.body;
+      if (!email) return res.status(400).json({ message: '이메일을 입력해주세요.' });
+
+      // 이미 가입된 이메일 확인
+      const existing = await db.query(
+        `SELECT id FROM users WHERE email = :1`, [email]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ message: '이미 사용 중인 이메일이에요.' });
+      }
+
+      // 6자리 랜덤 코드 생성
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+
+      // 5분 후 만료
+      verificationCodes.set(email, {
+        code,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+
+      await sendVerificationCode(email, code);
+      res.json({ message: '인증코드가 발송되었어요.' });
+    } catch (err) { next(err); }
+  },
+
+  // 인증코드 확인
+  verifyCode: async (req, res, next) => {
+    try {
+      const { email, code } = req.body;
+      if (!email || !code) {
+        return res.status(400).json({ message: '이메일과 인증코드를 입력해주세요.' });
+      }
+
+      const stored = verificationCodes.get(email);
+
+      if (!stored) {
+        return res.status(400).json({ message: '인증코드를 먼저 발송해주세요.' });
+      }
+      if (Date.now() > stored.expiresAt) {
+        verificationCodes.delete(email);
+        return res.status(400).json({ message: '인증코드가 만료되었어요. 다시 발송해주세요.' });
+      }
+      if (stored.code !== code) {
+        return res.status(400).json({ message: '인증코드가 올바르지 않아요.' });
+      }
+
+      // 인증 성공 — verified 표시
+      verificationCodes.set(email, { ...stored, verified: true });
+      res.json({ message: '이메일 인증이 완료되었어요.' });
+    } catch (err) { next(err); }
+  },
   register: async (req, res, next) => {
     try {
-      const { username, email, password, preferred_style } = req.body;
+      const { username, email, password, preferred_style, style_1, style_2 } = req.body;
       if (!username || !email || !password) {
         return res.status(400).json({ message: '모든 항목을 입력해주세요.' });
       }
-      const existEmail = await db.query(`SELECT id FROM users WHERE email = :1`, [email]);
-      if (existEmail.rows.length > 0) return res.status(409).json({ message: '이미 사용 중인 이메일입니다.' });
-      const existUsername = await db.query(`SELECT id FROM users WHERE username = :1`, [username]);
-      if (existUsername.rows.length > 0) return res.status(409).json({ message: '이미 사용 중인 닉네임입니다.' });
+
+      // ← 이메일 인증 확인 추가
+      const stored = verificationCodes.get(email);
+      if (!stored || !stored.verified) {
+        return res.status(400).json({ message: '이메일 인증이 필요해요.' });
+      }
+
+      // 기존 중복 확인 로직...
+      const existEmail = await db.query(
+        `SELECT id FROM users WHERE email = :1`, [email]
+      );
+      if (existEmail.rows.length > 0) {
+        return res.status(409).json({ message: '이미 사용 중인 이메일입니다.' });
+      }
+      const existUsername = await db.query(
+        `SELECT id FROM users WHERE username = :1`, [username]
+      );
+      if (existUsername.rows.length > 0) {
+        return res.status(409).json({ message: '이미 사용 중인 닉네임입니다.' });
+      }
 
       const password_hash = await bcrypt.hash(password, 10);
       const result = await db.query(
-        `INSERT INTO users (username, email, password_hash, preferred_style)
-         VALUES (:1, :2, :3, :4) RETURNING id INTO :5`,
-        [username, email, password_hash, preferred_style || null,
+        `INSERT INTO users (username, email, password_hash, preferred_style, style_1, style_2)
+       VALUES (:1, :2, :3, :4, :5, :6) RETURNING id INTO :7`,
+        [username, email, password_hash,
+          preferred_style || null, style_1 || null, style_2 || null,
           { dir: require('oracledb').BIND_OUT, type: require('oracledb').NUMBER }]
       );
+
+      // 인증코드 삭제
+      verificationCodes.delete(email);
+
       res.status(201).json({ message: '회원가입이 완료되었습니다.', userId: result.outBinds });
     } catch (err) { next(err); }
   },
@@ -35,7 +112,7 @@ const AuthController = {
         return res.status(400).json({ message: '이메일과 비밀번호를 입력해주세요.' });
       }
       const result = await db.query(`SELECT * FROM users WHERE email = :1 AND is_active = 1`, [email]);
-      const user   = result.rows[0];
+      const user = result.rows[0];
       if (!user) {
         return res.status(401).json({ message: '이메일 또는 비밀번호가 틀렸습니다.' });
       }
@@ -43,14 +120,14 @@ const AuthController = {
       if (!isMatch) {
         return res.status(401).json({ message: '이메일 또는 비밀번호가 틀렸습니다.' });
       }
-      const accessToken  = generateAccessToken(user.id);
+      const accessToken = generateAccessToken(user.id);
       const refreshToken = generateRefreshToken(user.id);
       await db.query(`UPDATE users SET refresh_token = :1 WHERE id = :2`, [refreshToken, user.id]);
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,
-        secure:   process.env.NODE_ENV === 'production',
+        secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
-        maxAge:   7 * 24 * 60 * 60 * 1000,
+        maxAge: 7 * 24 * 60 * 60 * 1000,
       });
       res.json({
         accessToken,
@@ -66,8 +143,8 @@ const AuthController = {
       const token = req.cookies.refreshToken;
       if (!token) return res.status(401).json({ message: '리프레시 토큰이 없습니다.' });
       const decoded = jwt.verify(token, refreshSecret);
-      const result  = await db.query(`SELECT refresh_token FROM users WHERE id = :1`, [decoded.id]);
-      const user    = result.rows[0];
+      const result = await db.query(`SELECT refresh_token FROM users WHERE id = :1`, [decoded.id]);
+      const user = result.rows[0];
       if (!user || user.refresh_token !== token) {
         return res.status(401).json({ message: '유효하지 않은 리프레시 토큰입니다.' });
       }

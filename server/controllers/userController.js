@@ -1,9 +1,8 @@
-const db             = require('../config/db');
+const db = require('../config/db');
 const { formatLastSeen } = require('../utils/formatTime');
 
 const UserController = {
 
-  // 내 정보
   getMe: async (req, res, next) => {
     try {
       const result = await db.query(
@@ -17,7 +16,6 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
-  // 프로필 조회
   getProfile: async (req, res, next) => {
     try {
       const { username } = req.params;
@@ -38,50 +36,80 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
-  // 프로필 수정
   updateProfile: async (req, res, next) => {
     try {
-      const { username, bio, height, weight, preferred_style } = req.body;
+      const { username, bio, height, weight, preferred_style, style_1, style_2 } = req.body;
       const profile_image = req.file ? `/uploads/${req.file.filename}` : null;
 
       if (profile_image) {
         await db.query(
           `UPDATE users SET username=:1, bio=:2, height=:3, weight=:4,
-           preferred_style=:5, profile_image=:6 WHERE id=:7`,
-          [username, bio, height||null, weight||null, preferred_style||null, profile_image, req.userId]
+         preferred_style=:5, style_1=:6, style_2=:7, profile_image=:8
+         WHERE id=:9`,
+          [username, bio, height || null, weight || null,
+            preferred_style || null, style_1 || null, style_2 || null,
+            profile_image, req.userId]
         );
       } else {
         await db.query(
           `UPDATE users SET username=:1, bio=:2, height=:3, weight=:4,
-           preferred_style=:5 WHERE id=:6`,
-          [username, bio, height||null, weight||null, preferred_style||null, req.userId]
+         preferred_style=:5, style_1=:6, style_2=:7
+         WHERE id=:8`,
+          [username, bio, height || null, weight || null,
+            preferred_style || null, style_1 || null, style_2 || null,
+            req.userId]
         );
       }
       const updated = await db.query(
-        `SELECT id, username, email, profile_image, bio, height, weight, preferred_style
-         FROM users WHERE id = :1`, [req.userId]
+        `SELECT id, username, email, profile_image, bio, height, weight,
+              preferred_style, style_1, style_2
+       FROM users WHERE id = :1`, [req.userId]
       );
       res.json({ message: '프로필이 수정되었습니다.', user: updated.rows[0] });
     } catch (err) { next(err); }
   },
 
-  // 유저 검색
   search: async (req, res, next) => {
     try {
       const { q } = req.query;
-      if (!q) return res.json([]);
-      const result = await db.query(
+      const keyword = q?.trim();
+      if (!keyword) return res.json({ users: [], posts: [] });
+
+      const searchPattern = `%${keyword}%`;
+      const users = await db.query(
         `SELECT id, username, profile_image, bio, preferred_style
          FROM users
          WHERE LOWER(username) LIKE LOWER(:1) AND is_active = 1 AND id != :2
          FETCH FIRST 10 ROWS ONLY`,
-        [`%${q}%`, req.userId]
+        [searchPattern, req.userId]
       );
-      res.json(result.rows);
+
+      const posts = await db.query(
+        `SELECT p.id, p.user_id, p.title, p.content, p.style, p.tags,
+                p.likes_count, p.comments_count, p.created_at,
+                u.username, u.profile_image,
+                (SELECT COUNT(*) FROM likes WHERE post_id = p.id AND user_id = :1) AS is_liked,
+                (SELECT COUNT(*) FROM bookmarks WHERE post_id = p.id AND user_id = :2) AS is_bookmarked,
+                (SELECT image_url FROM post_images WHERE post_id = p.id AND sort_order = 0
+                 FETCH FIRST 1 ROWS ONLY) AS thumbnail
+         FROM posts p
+         JOIN users u ON u.id = p.user_id
+         WHERE p.is_deleted = 0
+         AND (
+           LOWER(p.title) LIKE LOWER(:3)
+           OR LOWER(p.content) LIKE LOWER(:4)
+           OR LOWER(p.tags) LIKE LOWER(:5)
+           OR LOWER(u.username) LIKE LOWER(:6)
+         )
+         ORDER BY p.created_at DESC
+         FETCH FIRST 20 ROWS ONLY`,
+        [req.userId, req.userId, searchPattern, searchPattern, searchPattern, searchPattern]
+      );
+
+      res.json({ users: users.rows, posts: posts.rows });
     } catch (err) { next(err); }
   },
 
-  // 추천 팔로우 (같은 스타일)
   getRecommended: async (req, res, next) => {
     try {
       const result = await db.query(
@@ -106,7 +134,6 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
-  // 팔로워 목록
   getFollowers: async (req, res, next) => {
     try {
       const result = await db.query(
@@ -119,7 +146,20 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
-  // 팔로잉 목록
+  checkUsername: async (req, res, next) => {
+    try {
+      const { username } = req.query;
+      if (!username || !username.trim()) {
+        return res.status(400).json({ message: '닉네임을 입력해주세요.' });
+      }
+      const result = await db.query(
+        `SELECT id FROM users WHERE username = :1`,
+        [username.trim()]
+      );
+      res.json({ available: result.rows.length === 0 });
+    } catch (err) { next(err); }
+  },
+
   getFollowing: async (req, res, next) => {
     try {
       const result = await db.query(

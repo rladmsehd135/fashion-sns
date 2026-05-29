@@ -6,12 +6,13 @@ const NotificationController = {
     try {
       const result = await db.query(
         `SELECT n.id, n.type, n.is_read, n.created_at, n.post_id, n.comment_id,
-                u.username AS sender_username, u.profile_image AS sender_image
-         FROM notifications n
-         JOIN users u ON u.id = n.sender_id
-         WHERE n.user_id = :1
-         ORDER BY n.created_at DESC
-         FETCH FIRST 50 ROWS ONLY`,
+              n.sender_id,
+              u.username AS sender_username, u.profile_image AS sender_image
+       FROM notifications n
+       JOIN users u ON u.id = n.sender_id
+       WHERE n.user_id = :1
+       ORDER BY n.created_at DESC
+       FETCH FIRST 50 ROWS ONLY`,
         [req.userId]
       );
       res.json(result.rows);

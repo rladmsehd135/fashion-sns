@@ -1,9 +1,19 @@
+import { useMemo } from 'react';
+import { ThemeProvider, CssBaseline } from '@mui/material';
+import { createAppTheme } from './theme';
+import useThemeStore from './store/themeStore';
 import AppRouter from './router/AppRouter';
-import useAuth from './hooks/useAuth';
+import { Toaster } from 'react-hot-toast';
 
-function App() {
-  useAuth(); // ← 앱 시작 시 토큰 복원
-  return <AppRouter />;
+export default function App() {
+  const { mode } = useThemeStore();
+  const theme = useMemo(() => createAppTheme(mode), [mode]);
+
+  return (
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <AppRouter />
+      <Toaster position="top-center" />
+    </ThemeProvider>
+  );
 }
-
-export default App;

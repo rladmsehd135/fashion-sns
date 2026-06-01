@@ -17,3 +17,8 @@ export const sendVerificationCode = (email) =>
 
 export const verifyCode = (email, code) =>
   axiosInstance.post('/auth/verify-code', { email, code });
+
+export const sendCodeForChange   = ()       => axiosInstance.post('/auth/send-code-change');
+export const verifyCodeForChange = (code)   => axiosInstance.post('/auth/verify-code-change', { code });
+export const changePassword      = (pw)     => axiosInstance.post('/auth/change-password', { newPassword: pw });
+export const changeUsername      = (name)   => axiosInstance.post('/auth/change-username', { newUsername: name });

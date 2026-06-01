@@ -20,7 +20,6 @@ const CommentController = {
         [req.params.id]
       );
 
-      // 유저 정보 포함해서 반환
       const commentId = result.outBinds;
       const newComment = await db.query(
         `SELECT c.id, c.post_id, c.user_id, c.parent_id, c.content, c.created_at,
@@ -29,6 +28,43 @@ const CommentController = {
        WHERE c.id = :1`,
         [commentId]
       );
+
+      // 알림 발송
+      const sender = newComment.rows[0];
+      const io = req.app.get('io');
+      const notifPayload = {
+        type: 'comment',
+        username: sender?.username,
+        profile_image: sender?.profile_image,
+      };
+
+      if (parent_id) {
+        // 대댓글: 부모 댓글 작성자에게 알림
+        const parentRes = await db.query(
+          `SELECT user_id FROM comments WHERE id = :1`, [parent_id]
+        );
+        const parentAuthorId = parentRes.rows[0]?.user_id;
+        if (parentAuthorId && parentAuthorId !== req.userId) {
+          await db.query(
+            `INSERT INTO notifications (user_id, sender_id, type, post_id) VALUES (:1, :2, 'comment', :3)`,
+            [parentAuthorId, req.userId, req.params.id]
+          );
+          io.to(`user_${parentAuthorId}`).emit('notification:new', notifPayload);
+        }
+      } else {
+        // 댓글: 게시물 작성자에게 알림
+        const postRes = await db.query(
+          `SELECT user_id FROM posts WHERE id = :1`, [req.params.id]
+        );
+        const postOwnerId = postRes.rows[0]?.user_id;
+        if (postOwnerId && postOwnerId !== req.userId) {
+          await db.query(
+            `INSERT INTO notifications (user_id, sender_id, type, post_id) VALUES (:1, :2, 'comment', :3)`,
+            [postOwnerId, req.userId, req.params.id]
+          );
+          io.to(`user_${postOwnerId}`).emit('notification:new', notifPayload);
+        }
+      }
 
       res.status(201).json(newComment.rows[0] || { id: commentId, content, created_at: new Date() });
     } catch (err) { next(err); }

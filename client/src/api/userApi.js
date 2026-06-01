@@ -7,7 +7,8 @@ export const updateProfile = (data) =>
     headers: { 'Content-Type': 'multipart/form-data' },
   });
 export const toggleFollow      = (userId)   => axiosInstance.post(`/follow/${userId}`);
-export const getFollowers      = (id)       => axiosInstance.get(`/users/${id}/followers`);
-export const getFollowing      = (id)       => axiosInstance.get(`/users/${id}/following`);
+export const getFollowers = (id) => axiosInstance.get(`/users/${id}/followers`);
+export const getFollowing = (id) => axiosInstance.get(`/users/${id}/following`);
 export const searchUsers       = (q)        => axiosInstance.get(`/users/search?q=${q}`);
 export const getRecommendedUsers = ()       => axiosInstance.get('/users/recommended');
+export const getStyleReport    = ()         => axiosInstance.get('/users/me/style-report');

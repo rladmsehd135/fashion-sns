@@ -5,6 +5,7 @@ const db = require('../config/db');
 const { generateAccessToken, generateRefreshToken } = require('../utils/generateToken');
 const { refreshSecret } = require('../config/jwt');
 const verificationCodes = new Map();
+const changeVerificationCodes = new Map(); // 변경용 인증코드 별도 관리
 
 const AuthController = {
 
@@ -131,7 +132,18 @@ const AuthController = {
       });
       res.json({
         accessToken,
-        user: { id: user.id, username: user.username, email: user.email, profile_image: user.profile_image },
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          profile_image: user.profile_image,
+          bio: user.bio,
+          height: user.height,
+          weight: user.weight,
+          preferred_style: user.preferred_style,
+          style_1: user.style_1,
+          style_2: user.style_2,
+        },
       });
     } catch (err) {
       next(err);
@@ -168,6 +180,99 @@ const AuthController = {
       res.clearCookie('refreshToken');
       res.json({ message: '로그아웃 되었습니다.' });
     }
+  },
+  // 변경용 인증코드 발송 (로그인된 유저)
+  sendCodeForChange: async (req, res, next) => {
+    try {
+      const user = await db.query(
+        `SELECT email FROM users WHERE id = :1`, [req.userId]
+      );
+      if (!user.rows[0]) return res.status(404).json({ message: '유저를 찾을 수 없어요.' });
+
+      const email = user.rows[0].email;
+      if (email.startsWith('kakao_')) {
+        return res.status(400).json({ message: '소셜 로그인 계정은 비밀번호를 변경할 수 없어요.' });
+      }
+
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      changeVerificationCodes.set(req.userId, {
+        code,
+        expiresAt: Date.now() + 5 * 60 * 1000,
+      });
+
+      await sendVerificationCode(email, code);
+      res.json({ message: '인증코드가 발송되었어요.', email });
+    } catch (err) { next(err); }
+  },
+
+  // 변경용 인증코드 확인
+  verifyCodeForChange: async (req, res, next) => {
+    try {
+      const { code } = req.body;
+      const stored = changeVerificationCodes.get(req.userId);
+
+      if (!stored) return res.status(400).json({ message: '인증코드를 먼저 발송해주세요.' });
+      if (Date.now() > stored.expiresAt) {
+        changeVerificationCodes.delete(req.userId);
+        return res.status(400).json({ message: '인증코드가 만료되었어요.' });
+      }
+      if (stored.code !== code) {
+        return res.status(400).json({ message: '인증코드가 올바르지 않아요.' });
+      }
+
+      changeVerificationCodes.set(req.userId, { ...stored, verified: true });
+      res.json({ message: '인증이 완료되었어요.' });
+    } catch (err) { next(err); }
+  },
+
+  // 비밀번호 변경
+  changePassword: async (req, res, next) => {
+    try {
+      const { newPassword } = req.body;
+      const stored = changeVerificationCodes.get(req.userId);
+
+      if (!stored?.verified) {
+        return res.status(400).json({ message: '이메일 인증이 필요해요.' });
+      }
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ message: '비밀번호는 8자 이상이어야 해요.' });
+      }
+
+      const hash = await bcrypt.hash(newPassword, 10);
+      await db.query(`UPDATE users SET password_hash = :1 WHERE id = :2`, [hash, req.userId]);
+      changeVerificationCodes.delete(req.userId);
+      res.json({ message: '비밀번호가 변경되었어요.' });
+    } catch (err) { next(err); }
+  },
+
+  // 닉네임 변경
+  changeUsername: async (req, res, next) => {
+    try {
+      const { newUsername } = req.body;
+      const stored = changeVerificationCodes.get(req.userId);
+
+      if (!stored?.verified) {
+        return res.status(400).json({ message: '이메일 인증이 필요해요.' });
+      }
+      if (!newUsername || newUsername.trim().length < 2) {
+        return res.status(400).json({ message: '닉네임은 2자 이상이어야 해요.' });
+      }
+
+      const existing = await db.query(
+        `SELECT id FROM users WHERE username = :1 AND id != :2`,
+        [newUsername.trim(), req.userId]
+      );
+      if (existing.rows.length > 0) {
+        return res.status(409).json({ message: '이미 사용 중인 닉네임이에요.' });
+      }
+
+      await db.query(
+        `UPDATE users SET username = :1 WHERE id = :2`,
+        [newUsername.trim(), req.userId]
+      );
+      changeVerificationCodes.delete(req.userId);
+      res.json({ message: '닉네임이 변경되었어요.', username: newUsername.trim() });
+    } catch (err) { next(err); }
   },
 };
 

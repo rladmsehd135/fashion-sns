@@ -9,9 +9,13 @@ import {
   VisibilityRounded, VisibilityOffRounded,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
+import { ThemeProvider } from '@mui/material/styles';
+import { createAppTheme } from '../../theme';
 import useAuthStore from '../../store/authStore';
 import { login } from '../../api/authApi';
 import BrandMark from '../../components/common/BrandMark';
+
+const darkTheme = createAppTheme('dark');
 
 const KakaoIcon = () => (
   <Box sx={{
@@ -50,6 +54,7 @@ export default function Login() {
   };
 
   return (
+    <ThemeProvider theme={darkTheme}>
     <Box sx={{
       minHeight: '100vh', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
@@ -178,5 +183,6 @@ export default function Login() {
         </Card>
       </Box>
     </Box>
+    </ThemeProvider>
   );
 }

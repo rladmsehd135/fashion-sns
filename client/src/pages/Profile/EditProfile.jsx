@@ -10,19 +10,17 @@ import {
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
+import useThemeStore from '../../store/themeStore';
 import { updateProfile } from '../../api/userApi';
 import axiosInstance from '../../api/axiosInstance';
 
-const styleColors = {
-  techwear:'#4FC3F7', amekaji:'#FFB74D', casual:'#81C784',
-  street:'#F06292', workwear:'#CE93D8', oldmoney:'#E8C96D',
-  gorpcore:'#A5D6A7', blokecore:'#EF9A9A', cityboy:'#90CAF9',
-  preppy:'#F48FB1', rockchic:'#B39DDB', minimal:'#CFD8DC',
-};
+import { styleColors } from '../../constants/styleConstants';
 
 export default function EditProfile() {
   const navigate = useNavigate();
   const { user, updateUser } = useAuthStore();
+  const { mode } = useThemeStore();
+  const isDark = mode === 'dark';
   const fileRef = useRef(null);
 
   const [form, setForm] = useState({
@@ -315,12 +313,12 @@ export default function EditProfile() {
           </Typography>
           <Box sx={{
             px:1.5, py:0.3, borderRadius:10,
-            backgroundColor: selectedStyles.length > 0 ? 'rgba(232,201,109,0.08)' : '#111',
-            border:`1px solid ${selectedStyles.length > 0 ? '#E8C96D40' : '#1E1E1E'}`,
+            backgroundColor: selectedStyles.length > 0 ? 'rgba(232,201,109,0.08)' : (isDark ? '#111' : '#F0F0F0'),
+            border:`1px solid ${selectedStyles.length > 0 ? '#E8C96D40' : (isDark ? '#1E1E1E' : '#E0E0E0')}`,
           }}>
             <Typography fontWeight={700} sx={{
               fontSize:11,
-              color: selectedStyles.length > 0 ? '#E8C96D' : '#333',
+              color: selectedStyles.length > 0 ? '#E8C96D' : (isDark ? '#333' : '#AAAAAA'),
             }}>
               {selectedStyles.length} / 3
             </Typography>
@@ -341,14 +339,14 @@ export default function EditProfile() {
                 <Box key={val} sx={{
                   display:'flex', alignItems:'center', gap:0.5,
                   px:1.5, py:0.4, borderRadius:10,
-                  backgroundColor: i === 0 ? `${color}15` : 'rgba(255,255,255,0.04)',
-                  border:`1px solid ${i === 0 ? `${color}50` : '#2A2A2A'}`,
+                  backgroundColor: i === 0 ? `${color}15` : (isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'),
+                  border:`1px solid ${i === 0 ? `${color}50` : (isDark ? '#2A2A2A' : '#E0E0E0')}`,
                 }}>
                   <Typography sx={{ fontSize:10, fontWeight:700,
-                    color: i === 0 ? color : '#505050' }}>
+                    color: i === 0 ? color : (isDark ? '#505050' : '#888888') }}>
                     {i === 0 ? '대표' : `관심 ${i}`}
                   </Typography>
-                  <Typography sx={{ fontSize:11, color: i === 0 ? color : '#808080' }}>
+                  <Typography sx={{ fontSize:11, color: i === 0 ? color : (isDark ? '#808080' : '#AAAAAA') }}>
                     {s?.icon} {s?.label}
                   </Typography>
                 </Box>
@@ -363,7 +361,7 @@ export default function EditProfile() {
           gap:1.2, mb:4,
           maxHeight:400, overflowY:'auto', pr:0.5,
           '&::-webkit-scrollbar':{ width:3 },
-          '&::-webkit-scrollbar-thumb':{ backgroundColor:'#2A2A2A', borderRadius:4 },
+          '&::-webkit-scrollbar-thumb':{ backgroundColor: isDark ? '#2A2A2A' : '#DDDDDD', borderRadius:4 },
         }}>
           {styleList.map(s => {
             const on    = selectedStyles.includes(s.value);
@@ -373,13 +371,13 @@ export default function EditProfile() {
               <Box key={s.value} onClick={() => handleStyleClick(s.value)}
                 sx={{
                   p:1.5, borderRadius:'12px', cursor:'pointer',
-                  border:`1.5px solid ${on ? color : '#1E1E1E'}`,
-                  backgroundColor: on ? `${color}12` : '#0C0C0C',
+                  border:`1.5px solid ${on ? color : (isDark ? '#1E1E1E' : '#E0E0E0')}`,
+                  backgroundColor: on ? `${color}12` : (isDark ? '#0C0C0C' : '#F7F7F7'),
                   position:'relative', textAlign:'center',
                   transition:'all 0.18s ease',
                   '&:hover':{
-                    borderColor: on ? color : '#2A2A2A',
-                    backgroundColor: on ? `${color}18` : '#141414',
+                    borderColor: on ? color : (isDark ? '#2A2A2A' : '#C0C0C0'),
+                    backgroundColor: on ? `${color}18` : (isDark ? '#141414' : '#EFEFEF'),
                     transform:'translateY(-1px)',
                   },
                 }}>
@@ -387,7 +385,7 @@ export default function EditProfile() {
                   <Box sx={{
                     position:'absolute', top:5, right:5,
                     width:18, height:18, borderRadius:'50%',
-                    backgroundColor: order === 0 ? color : '#2A2A2A',
+                    backgroundColor: order === 0 ? color : (isDark ? '#2A2A2A' : '#E0E0E0'),
                     display:'flex', alignItems:'center', justifyContent:'center',
                     border: order === 0 ? 'none' : `1px solid ${color}60`,
                   }}>
@@ -403,10 +401,10 @@ export default function EditProfile() {
                   {s.icon}
                 </Typography>
                 <Typography fontWeight={on ? 700 : 500} fontSize={11}
-                  sx={{ color: on ? color : '#C0C0C0', mb:0.2, lineHeight:1.2 }}>
+                  sx={{ color: on ? color : (isDark ? '#C0C0C0' : '#606060'), mb:0.2, lineHeight:1.2 }}>
                   {s.label}
                 </Typography>
-                <Typography sx={{ color:'#303030', fontSize:9, lineHeight:1.3 }}>
+                <Typography sx={{ color: isDark ? '#303030' : '#999999', fontSize:9, lineHeight:1.3 }}>
                   {s.description}
                 </Typography>
               </Box>

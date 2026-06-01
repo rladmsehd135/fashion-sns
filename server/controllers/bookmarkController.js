@@ -1,4 +1,5 @@
 const db = require('../config/db');
+const { updateStylePref } = require('../utils/recommendUtil');
 
 const BookmarkController = {
 
@@ -16,6 +17,13 @@ const BookmarkController = {
       }
       await db.query(`INSERT INTO bookmarks (user_id, post_id) VALUES (:1, :2)`, [req.userId, postId]);
       await db.query(`UPDATE posts SET bookmarks_count = bookmarks_count + 1 WHERE id = :1`, [postId]);
+
+      // 북마크 시 스타일 선호도 +5 (강한 관심 신호)
+      const post = await db.query(`SELECT style FROM posts WHERE id = :1`, [postId]);
+      if (post.rows[0]?.style) {
+        updateStylePref(req.userId, post.rows[0].style, 5).catch(() => {});
+      }
+
       res.json({ bookmarked: true });
     } catch (err) {
       next(err);

@@ -11,9 +11,13 @@ import {
   CheckCircleRounded as CheckIcon,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
+import { ThemeProvider } from '@mui/material/styles';
+import { createAppTheme } from '../../theme';
 import { register } from '../../api/authApi';
 import axiosInstance from '../../api/axiosInstance';
 import BrandMark from '../../components/common/BrandMark';
+
+const darkTheme = createAppTheme('dark');
 
 const getStrength = (pw) => {
   if (!pw) return { score: 0, label: '', color: 'transparent', bg: 'transparent' };
@@ -36,10 +40,7 @@ const inputSx = {
   '& .MuiInputLabel-root': { fontSize: 14 },
 };
 
-const styleColors = {
-  techwear: '#4FC3F7', amekaji: '#FFB74D', casual: '#81C784',
-  street: '#F06292', workwear: '#CE93D8', oldmoney: '#E8C96D',
-};
+import { styleColors } from '../../constants/styleConstants';
 
 export default function Register() {
   const navigate = useNavigate();
@@ -186,6 +187,7 @@ export default function Register() {
   };
 
   return (
+    <ThemeProvider theme={darkTheme}>
     <Box sx={{
       minHeight: '100vh', display: 'flex',
       alignItems: 'center', justifyContent: 'center',
@@ -594,5 +596,6 @@ export default function Register() {
         </Card>
       </Box>
     </Box>
+    </ThemeProvider>
   );
 }

@@ -1,5 +1,6 @@
 const db = require('../config/db');
 const { formatLastSeen } = require('../utils/formatTime');
+const { generateStyleSummary } = require('../utils/aiService');
 
 const UserController = {
 
@@ -7,7 +8,7 @@ const UserController = {
     try {
       const result = await db.query(
         `SELECT id, username, email, profile_image, bio, height, weight,
-                preferred_style, is_online, last_seen_at, created_at
+                preferred_style, style_1, style_2, is_online, last_seen_at, created_at
          FROM users WHERE id = :1 AND is_active = 1`,
         [req.userId]
       );
@@ -112,6 +113,7 @@ const UserController = {
 
   getRecommended: async (req, res, next) => {
     try {
+      const limit = Math.min(parseInt(req.query.limit) || 30, 50);
       const result = await db.query(
         `SELECT u.id, u.username, u.profile_image, u.bio, u.preferred_style,
                 (SELECT COUNT(*) FROM follows WHERE following_id = u.id) AS follower_count
@@ -127,8 +129,8 @@ const UserController = {
            CASE WHEN u.preferred_style = (SELECT preferred_style FROM users WHERE id = :4)
                 THEN 0 ELSE 1 END,
            (SELECT COUNT(*) FROM follows WHERE following_id = u.id) DESC
-         FETCH FIRST 5 ROWS ONLY`,
-        [req.userId, req.userId, req.userId, req.userId]
+         FETCH FIRST :5 ROWS ONLY`,
+        [req.userId, req.userId, req.userId, req.userId, limit]
       );
       res.json(result.rows);
     } catch (err) { next(err); }
@@ -137,10 +139,30 @@ const UserController = {
   getFollowers: async (req, res, next) => {
     try {
       const result = await db.query(
-        `SELECT u.id, u.username, u.profile_image, u.preferred_style
-         FROM follows f JOIN users u ON u.id = f.follower_id
-         WHERE f.following_id = :1`,
-        [req.params.id]
+        `SELECT u.id, u.username, u.profile_image, u.bio, u.preferred_style,
+              (SELECT COUNT(*) FROM follows
+               WHERE follower_id = :1 AND following_id = u.id) AS is_following
+       FROM follows f
+       JOIN users u ON u.id = f.follower_id
+       WHERE f.following_id = :2
+       ORDER BY f.created_at DESC`,
+        [req.userId, req.params.id]
+      );
+      res.json(result.rows);
+    } catch (err) { next(err); }
+  },
+
+  getFollowing: async (req, res, next) => {
+    try {
+      const result = await db.query(
+        `SELECT u.id, u.username, u.profile_image, u.bio, u.preferred_style,
+              (SELECT COUNT(*) FROM follows
+               WHERE follower_id = :1 AND following_id = u.id) AS is_following
+       FROM follows f
+       JOIN users u ON u.id = f.following_id
+       WHERE f.follower_id = :2
+       ORDER BY f.created_at DESC`,
+        [req.userId, req.params.id]
       );
       res.json(result.rows);
     } catch (err) { next(err); }
@@ -160,15 +182,34 @@ const UserController = {
     } catch (err) { next(err); }
   },
 
-  getFollowing: async (req, res, next) => {
+  getStyleReport: async (req, res, next) => {
     try {
-      const result = await db.query(
-        `SELECT u.id, u.username, u.profile_image, u.preferred_style
-         FROM follows f JOIN users u ON u.id = f.following_id
-         WHERE f.follower_id = :1`,
-        [req.params.id]
+      // 1. 스타일 선호도 점수 집계
+      const stylePrefs = await db.query(
+        `SELECT style, score FROM user_style_prefs 
+         WHERE user_id = :1 ORDER BY score DESC FETCH FIRST 3 ROWS ONLY`,
+        [req.userId]
       );
-      res.json(result.rows);
+
+      // 2. 착용 아이템 핏(Fit) 통계
+      const fitStats = await db.query(
+        `SELECT pi.fit_review, COUNT(*) as cnt 
+         FROM post_items pi 
+         JOIN posts p ON pi.post_id = p.id 
+         WHERE p.user_id = :1 AND pi.fit_review IS NOT NULL
+         GROUP BY pi.fit_review`,
+        [req.userId]
+      );
+
+      // 3. AI 분석 요약 생성
+      const aiReport = await generateStyleSummary(stylePrefs.rows, fitStats.rows); // await 추가
+
+      res.json({
+        styles: stylePrefs.rows,
+        fits: fitStats.rows,
+        report: aiReport,
+        updatedAt: new Date().toISOString()
+      });
     } catch (err) { next(err); }
   },
 };

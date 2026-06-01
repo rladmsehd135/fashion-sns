@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Box, Avatar, Typography, Dialog, IconButton, LinearProgress } from '@mui/material';
-import { AddRounded, CloseRounded } from '@mui/icons-material';
+import { AddRounded, CloseRounded, DeleteOutlineRounded } from '@mui/icons-material';
 import { getStories, uploadStory } from '../../api/postApi';
 import useAuthStore from '../../store/authStore';
+import toast from 'react-hot-toast';
 
 const StoryBar = () => {
   const { user }          = useAuthStore();
@@ -57,6 +58,35 @@ const StoryBar = () => {
     await uploadStory(formData);
     const res = await getStories();
     setStories(res.data);
+  };
+
+  const handleDeleteStory = async () => {
+    if (!window.confirm('이 스토리를 삭제할까요?')) return;
+    try {
+      const currentStory = userStories[storyIndex];
+      const { deleteStory } = await import('../../api/postApi');
+      await deleteStory(currentStory.id);
+      toast.success('스토리가 삭제되었습니다.');
+
+      // 삭제된 스토리를 목록에서 제거
+      const updatedUserStories = userStories.filter((_, i) => i !== storyIndex);
+      setUserStories(updatedUserStories);
+
+      if (updatedUserStories.length === 0) {
+        setViewing(null);
+      } else {
+        // 인덱스 조정 및 진행률 초기화
+        const nextIndex = storyIndex >= updatedUserStories.length ? updatedUserStories.length - 1 : storyIndex;
+        setStoryIndex(nextIndex);
+        setProgress(0);
+      }
+
+      // 전체 스토리 바 목록 갱신
+      const res = await getStories();
+      setStories(res.data);
+    } catch {
+      toast.error('삭제에 실패했습니다.');
+    }
   };
 
   const myStory = stories.find(s => s.user_id === user?.id);
@@ -180,6 +210,11 @@ const StoryBar = () => {
               </Avatar>
               <Typography fontWeight={600} color="#fff" fontSize={14}>{viewing.username}</Typography>
               <Box sx={{ flex: 1 }} />
+              {viewing.user_id === user?.id && (
+                <IconButton onClick={handleDeleteStory} sx={{ color: '#fff', mr: 1 }}>
+                  <DeleteOutlineRounded />
+                </IconButton>
+              )}
               <IconButton onClick={() => setViewing(null)} sx={{ color: '#fff' }}>
                 <CloseRounded />
               </IconButton>

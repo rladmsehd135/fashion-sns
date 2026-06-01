@@ -1,5 +1,6 @@
 import axiosInstance from './axiosInstance';
 
+export const getCategories = () => axiosInstance.get('/posts/categories');
 export const getFeed = (page = 1) => axiosInstance.get(`/posts/feed?page=${page}`);
 export const getExplore = (style, page) => axiosInstance.get(`/posts/explore?style=${style || ''}&page=${page}`);
 export const getRecommended = (page = 1) => axiosInstance.get(`/posts/recommended?page=${page}`);

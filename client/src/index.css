@@ -1,5 +1,4 @@
-@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-
+/* Pretendard는 npm 패키지로 main.jsx에서 직접 임포트합니다. */
 * {
   margin: 0;
   padding: 0;

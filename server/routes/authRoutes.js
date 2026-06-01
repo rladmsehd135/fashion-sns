@@ -2,6 +2,12 @@ const router         = require('express').Router();
 const AuthController = require('../controllers/authController');
 const passport       = require('../config/passport');
 const { generateAccessToken } = require('../utils/generateToken');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+router.post('/send-code-change',   authMiddleware, AuthController.sendCodeForChange);
+router.post('/verify-code-change', authMiddleware, AuthController.verifyCodeForChange);
+router.post('/change-password',    authMiddleware, AuthController.changePassword);
+router.post('/change-username',    authMiddleware, AuthController.changeUsername);
 
 router.post('/register', AuthController.register);
 router.post('/login',    AuthController.login);

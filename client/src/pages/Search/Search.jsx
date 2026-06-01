@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useMemo, useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Avatar,
   Box,
@@ -71,8 +71,15 @@ const Empty = ({ text }) => (
 
 const Search = () => {
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const [query, setQuery] = useState(() => searchParams.get('q') || '');
   const [results, setResults] = useState({ users: [], posts: [] });
+
+  // URL의 q 파라미터로 초기 검색 실행
+  useEffect(() => {
+    const q = searchParams.get('q');
+    if (q) runSearch(q);
+  }, []);
 
   const runSearch = async (value) => {
     setQuery(value);

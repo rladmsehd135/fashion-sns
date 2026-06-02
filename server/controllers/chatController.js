@@ -214,6 +214,38 @@ const ChatController = {
     } catch (err) { next(err); }
   },
 
+  leaveGroup: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const member = await db.query(
+        `SELECT 1 FROM group_members WHERE room_id = :1 AND user_id = :2`,
+        [id, req.userId]
+      );
+      if (!member.rows[0]) return res.status(404).json({ message: '채팅방 멤버가 아닙니다.' });
+
+      await db.query(`DELETE FROM group_members WHERE room_id = :1 AND user_id = :2`, [id, req.userId]);
+      await db.query(`DELETE FROM group_read_status WHERE room_id = :1 AND user_id = :2`, [id, req.userId]);
+
+      const remaining = await db.query(
+        `SELECT COUNT(*) AS cnt FROM group_members WHERE room_id = :1`, [id]
+      );
+      if (Number(remaining.rows[0]?.cnt) === 0) {
+        await db.query(`DELETE FROM chat_messages WHERE room_id = :1`, [id]);
+        await db.query(`DELETE FROM chat_rooms WHERE id = :1`, [id]);
+      }
+
+      const leaverRes = await db.query(`SELECT username FROM users WHERE id = :1`, [req.userId]);
+      const io = req.app.get('io');
+      io.to(`room_${id}`).emit('chat:member_left', {
+        roomId: Number(id),
+        userId: req.userId,
+        username: leaverRes.rows[0]?.username,
+      });
+
+      res.json({ message: '채팅방을 나갔습니다.' });
+    } catch (err) { next(err); }
+  },
+
   getGroupMembers: async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -248,26 +280,50 @@ const ChatController = {
         }
       }
 
-      const result = await db.query(
-        `SELECT * FROM (
-           SELECT m.id, m.room_id, m.sender_id, m.message_type,
-                  m.content, m.image_url, m.created_at,
-                  u.username, u.profile_image,
-                  CASE
-                    WHEN m.sender_id = :sender_id THEN
-                      CASE WHEN (
-                        SELECT CASE WHEN cr.user1_id = m.sender_id THEN cr.user2_read_at
-                                    ELSE cr.user1_read_at END
-                        FROM chat_rooms cr WHERE cr.id = m.room_id
-                      ) > m.created_at THEN 1 ELSE 0 END
-                    ELSE 1
-                  END AS is_read
-           FROM chat_messages m JOIN users u ON u.id = m.sender_id
-           WHERE m.room_id = :room_id AND m.is_deleted = 0
-           ORDER BY m.created_at DESC
-         ) WHERE ROWNUM <= :limit`,
-        { sender_id: req.userId, room_id: id, limit }
-      );
+      let result;
+      if (isGroup) {
+        result = await db.query(
+          `SELECT * FROM (
+             SELECT m.id, m.room_id, m.sender_id, m.message_type,
+                    m.content, m.image_url, m.created_at,
+                    u.username, u.profile_image,
+                    1 AS is_read,
+                    (SELECT COUNT(*) FROM group_members gm2
+                     WHERE gm2.room_id = m.room_id AND gm2.user_id != m.sender_id
+                     AND NOT EXISTS (
+                       SELECT 1 FROM group_read_status grs
+                       WHERE grs.room_id = m.room_id AND grs.user_id = gm2.user_id
+                       AND grs.last_read_at >= m.created_at
+                     )) AS unread_count
+             FROM chat_messages m JOIN users u ON u.id = m.sender_id
+             WHERE m.room_id = :room_id AND m.is_deleted = 0
+             ORDER BY m.created_at DESC
+           ) WHERE ROWNUM <= :limit`,
+          { sender_id: req.userId, room_id: id, limit }
+        );
+      } else {
+        result = await db.query(
+          `SELECT * FROM (
+             SELECT m.id, m.room_id, m.sender_id, m.message_type,
+                    m.content, m.image_url, m.created_at,
+                    u.username, u.profile_image,
+                    CASE
+                      WHEN m.sender_id = :sender_id THEN
+                        CASE WHEN (
+                          SELECT CASE WHEN cr.user1_id = m.sender_id THEN cr.user2_read_at
+                                      ELSE cr.user1_read_at END
+                          FROM chat_rooms cr WHERE cr.id = m.room_id
+                        ) > m.created_at THEN 1 ELSE 0 END
+                      ELSE 1
+                    END AS is_read,
+                    0 AS unread_count
+             FROM chat_messages m JOIN users u ON u.id = m.sender_id
+             WHERE m.room_id = :room_id AND m.is_deleted = 0
+             ORDER BY m.created_at DESC
+           ) WHERE ROWNUM <= :limit`,
+          { sender_id: req.userId, room_id: id, limit }
+        );
+      }
       res.json(result.rows.reverse());
     } catch (err) {
       next(err);
@@ -291,6 +347,12 @@ const ChatController = {
            WHEN NOT MATCHED THEN INSERT (room_id, user_id, last_read_at) VALUES (:3, :4, CURRENT_TIMESTAMP)`,
           [id, req.userId, id, req.userId]
         );
+        // 그룹 내 다른 멤버에게 읽음 알림 → 발신자의 unread_count 감소
+        io.to(`room_${id}`).emit('chat:group_read', {
+          roomId: Number(id),
+          readerId: req.userId,
+          readAt: new Date().toISOString(),
+        });
       } else {
         const column = room.rows[0].user1_id === req.userId ? 'user1_read_at' : 'user2_read_at';
         await db.query(`UPDATE chat_rooms SET ${column} = CURRENT_TIMESTAMP WHERE id = :1`, [id]);

@@ -8,7 +8,7 @@ import {
 import {
   HomeRounded, ExploreRounded, AddBoxRounded,
   PersonRounded, LogoutRounded, FavoriteBorderRounded,
-  SendRounded, SearchRounded,
+  SendRounded, SearchRounded, LeaderboardRounded, SportsEsportsRounded,
   DarkModeRounded, LightModeRounded, SettingsRounded,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
@@ -21,6 +21,7 @@ import axiosInstance from '../../api/axiosInstance';
 import MiniChat from '../common/MiniChat';
 
 const NotiItem = ({ n, notiIcon, notiText, timeAgoNoti }) => {
+  const navigate = useNavigate();
   const [isFollowing, setIsFollowing] = useState(n.is_following || false);
   const { mode } = useThemeStore();
   const isDark = mode === 'dark';
@@ -49,6 +50,7 @@ const NotiItem = ({ n, notiIcon, notiText, timeAgoNoti }) => {
       <Box sx={{ position:'relative', flexShrink:0 }}>
         <Avatar
           src={n.profile_image ? `http://localhost:5000${n.profile_image}` : null}
+          onClick={() => navigate(`/profile/${n.username}`)}
           sx={{
             width:42, height:42,
             bgcolor: isDark ? '#1A1A1A' : '#F0F0F0',
@@ -70,6 +72,7 @@ const NotiItem = ({ n, notiIcon, notiText, timeAgoNoti }) => {
       <Box sx={{ flex:1, minWidth:0 }}>
         <Typography fontSize={13} sx={{ color: isDark ? '#C0C0C0' : '#333333', lineHeight:1.5 }}>
           <Typography component="span" fontWeight={700}
+            onClick={() => navigate(`/profile/${n.username}`)}
             sx={{ color: isDark ? '#EFEFEF' : '#0A0A0A', mr:0.5, cursor:'pointer',
               '&:hover':{ color:'#E8C96D' } }}>
             {n.username}
@@ -123,11 +126,13 @@ export default function Navbar() {
   }, [isLoggedIn]);
 
   const navItems = [
-    { label:'홈',     icon:<HomeRounded />,    path:'/' },
-    { label:'탐색',   icon:<ExploreRounded />, path:'/explore' },
-    { label:'검색',   icon:<SearchRounded />,  path:'/search' },
-    { label:'업로드', icon:<AddBoxRounded />,  path:'/post/create' },
-    { label:'프로필', icon:<PersonRounded />,  path:`/profile/${user?.username}` },
+    { label:'홈',     icon:<HomeRounded />,        path:'/' },
+    { label:'탐색',   icon:<ExploreRounded />,     path:'/explore' },
+    { label:'검색',   icon:<SearchRounded />,      path:'/search' },
+    { label:'배틀',   icon:<SportsEsportsRounded />, path:'/battle' },
+    { label:'랭킹',   icon:<LeaderboardRounded />, path:'/ranking' },
+    { label:'업로드', icon:<AddBoxRounded />,      path:'/post/create' },
+    { label:'프로필', icon:<PersonRounded />,      path:`/profile/${user?.username}` },
   ];
 
   const isActive = (path) =>
@@ -196,16 +201,20 @@ export default function Navbar() {
   };
 
   const notiIcon = (type) => {
-    if (type === 'follow')  return '👤';
-    if (type === 'like')    return '❤️';
-    if (type === 'comment') return '💬';
+    if (type === 'follow')      return '👤';
+    if (type === 'like')        return '❤️';
+    if (type === 'comment')     return '💬';
+    if (type === 'story_like')  return '🔥';
+    if (type === 'story_reply') return '💬';
     return '🔔';
   };
 
   const notiText = (n) => {
-    if (n.type === 'follow')  return '님이 팔로우하기 시작했어요.';
-    if (n.type === 'like')    return '님이 좋아요를 눌렀어요.';
-    if (n.type === 'comment') return '님이 댓글을 남겼어요.';
+    if (n.type === 'follow')      return '님이 팔로우하기 시작했어요.';
+    if (n.type === 'like')        return '님이 좋아요를 눌렀어요.';
+    if (n.type === 'comment')     return '님이 댓글을 남겼어요.';
+    if (n.type === 'story_like')  return '님이 스토리에 ❤️ 반응을 보냈어요.';
+    if (n.type === 'story_reply') return '님이 스토리에 답장했어요.';
     return '새 알림이 있어요.';
   };
 
@@ -341,15 +350,15 @@ export default function Navbar() {
                 ? 'max-width 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease 0.06s'
                 : 'max-width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.1s ease',
             }}>
-              <Typography fontWeight={900} letterSpacing={3} fontSize={17}
+              <Typography fontWeight={900} letterSpacing={5} fontSize={18}
                 sx={{
                   background:'linear-gradient(135deg, #E8C96D, #D4AF37)',
                   WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
-                  lineHeight:1, whiteSpace:'nowrap',
+                  lineHeight:1, whiteSpace:'nowrap', fontFamily: '"Montserrat", sans-serif'
                 }}>
                 FITLOG
               </Typography>
-              <Typography sx={{ color: isDark ? '#2A2A2A' : '#CCCCCC', letterSpacing:2, fontSize:8, lineHeight:1.5, whiteSpace:'nowrap' }}>
+              <Typography sx={{ color: isDark ? '#444' : '#999', letterSpacing:'0.3em', fontSize:7, fontWeight: 800, lineHeight:1.5, whiteSpace:'nowrap', textTransform: 'uppercase' }}>
                 FASHION ARCHIVE
               </Typography>
             </Box>

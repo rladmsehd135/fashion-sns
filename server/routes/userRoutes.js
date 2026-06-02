@@ -19,7 +19,11 @@ router.get('/styles/list', async (req, res, next) => {
 });
 
 router.get('/me',                authMiddleware, UserController.getMe);
+router.get('/me/style-prefs',    authMiddleware, UserController.getStylePrefs);
+router.post('/:id/block',        authMiddleware, UserController.blockUser);
+router.post('/:id/report',       authMiddleware, UserController.reportUser);
 router.get('/me/style-report',   authMiddleware, UserController.getStyleReport);
+router.get('/me/mutuals',        authMiddleware, UserController.getMutuals);
 router.get('/check-username',    UserController.checkUsername);
 router.get('/search',            authMiddleware, UserController.search);
 router.get('/recommended',       authMiddleware, UserController.getRecommended);

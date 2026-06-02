@@ -62,6 +62,19 @@ export default function StyleReportModal({ open, onClose, isDark }) {
         ) : data && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             
+            {/* 페르소나 타이틀 */}
+            <Box sx={{ textAlign: 'center', py: 1 }}>
+              <Typography fontSize={10} fontWeight={800} letterSpacing={3} sx={{ color: C.accent, mb: 0.5 }}>
+                AI STYLE ARCHETYPE
+              </Typography>
+              <Typography fontSize={22} fontWeight={900} sx={{ color: C.text, letterSpacing: -0.5, mb: 1 }}>
+                {data.report.archetype}
+              </Typography>
+              <Typography fontSize={13} sx={{ color: C.textSub }}>
+                {data.report.archetypeDescription}
+              </Typography>
+            </Box>
+
             {/* AI 요약 */}
             <Paper elevation={0} sx={{ p: 2, bgcolor: C.card, borderRadius: 3, border: `1px solid ${C.border}` }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
@@ -84,7 +97,7 @@ export default function StyleReportModal({ open, onClose, isDark }) {
               </Typography>
               <Grid container spacing={1}>
                 {data.styles.map((s, i) => (
-                  <Grid item xs={4} key={s.style}>
+                  <Grid size={4} key={s.style}>
                     <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: C.card, borderRadius: 2 }}>
                       <Typography fontSize={10} color={C.textSub} mb={0.5}>{i + 1}위</Typography>
                       <Typography fontWeight={700} fontSize={13} sx={{ color: C.accent }}>{s.style}</Typography>

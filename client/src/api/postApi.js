@@ -2,7 +2,8 @@ import axiosInstance from './axiosInstance';
 
 export const getCategories = () => axiosInstance.get('/posts/categories');
 export const getFeed = (page = 1) => axiosInstance.get(`/posts/feed?page=${page}`);
-export const getExplore = (style, page) => axiosInstance.get(`/posts/explore?style=${style || ''}&page=${page}`);
+export const getExplore = (style, page, bodyFilter = false) =>
+  axiosInstance.get(`/posts/explore?style=${style || ''}&page=${page}${bodyFilter ? '&bodyFilter=true' : ''}`);
 export const getRecommended = (page = 1) => axiosInstance.get(`/posts/recommended?page=${page}`);
 export const getPost = (id) => axiosInstance.get(`/posts/${id}`);
 export const getUserPosts = (id) => axiosInstance.get(`/posts/user/${id}`);
@@ -15,8 +16,13 @@ export const getMyBookmarks = () => axiosInstance.get('/bookmarks');
 export const getComments = (id) => axiosInstance.get(`/posts/${id}/comments`);
 export const createComment = (id, data) => axiosInstance.post(`/posts/${id}/comments`, data);
 export const deleteComment = (id) => axiosInstance.delete(`/comments/${id}`);
+export const getMyStylePrefs = () => axiosInstance.get('/users/me/style-prefs');
 export const getStories = () => axiosInstance.get('/stories');
 export const getUserStories = (userId) => axiosInstance.get(`/stories/${userId}`);
 export const uploadStory = (formData) => axiosInstance.post('/stories', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
 });
+export const repostPost  = (id)      => axiosInstance.post(`/posts/${id}/repost`);
+export const deleteStory = (storyId) => axiosInstance.delete(`/stories/${storyId}`);
+export const likeStory = (storyId) => axiosInstance.post(`/stories/${storyId}/like`);
+export const replyToStory = (storyId, message) => axiosInstance.post(`/stories/${storyId}/reply`, { message });

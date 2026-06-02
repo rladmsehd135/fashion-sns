@@ -17,6 +17,8 @@ import ChatPage          from '../pages/Chat/ChatPage';
 import Search            from '../pages/Search/Search';
 import PeopleSuggestions from '../components/common/PeopleSuggestions';
 import Settings          from '../pages/Settings/Settings';
+import RankingPage       from '../pages/Ranking/RankingPage';
+import BattlePage        from '../components/layout/BattlePage'; // 배틀 페이지 임포트
 import axiosInstance     from '../api/axiosInstance';
 
 const PrivateRoute = ({ children }) => {
@@ -81,7 +83,9 @@ const AppRouter = () => {
           <Route path="profile/:username" element={<Profile />} />
           <Route path="chat"              element={<ChatPage />} />
           <Route path="search"            element={<Search />} />
-          <Route path="settings"          element={<Settings />} />  
+          <Route path="settings"          element={<Settings />} />
+          <Route path="ranking"           element={<RankingPage />} />
+          <Route path="battle"            element={<BattlePage />} />
         </Route>
       </Routes>
     </BrowserRouter>

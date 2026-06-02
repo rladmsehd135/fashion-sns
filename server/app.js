@@ -13,7 +13,8 @@ const chatRoutes         = require('./routes/chatRoutes');
 const bookmarkRoutes     = require('./routes/bookmarkRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const errorHandler       = require('./middlewares/errorHandler');
-const storyRoutes = require('./routes/storyRoutes');
+const storyRoutes   = require('./routes/storyRoutes');
+const rankingRoutes = require('./routes/rankingRoutes');
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/chat',          chatRoutes);
 app.use('/api/bookmarks',     bookmarkRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stories', storyRoutes);
+app.use('/api/ranking', rankingRoutes);
 
 
 app.use(errorHandler);

@@ -143,6 +143,8 @@ const AuthController = {
           preferred_style: user.preferred_style,
           style_1: user.style_1,
           style_2: user.style_2,
+          style_archetype: user.style_archetype,
+          style_archetype_desc: user.style_archetype_desc,
         },
       });
     } catch (err) {

@@ -3,16 +3,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box, Avatar, Typography, Button,
   Tab, Tabs, CircularProgress, Chip,
-  Dialog, IconButton, Divider,
+  Dialog, IconButton, Divider, Tooltip,
 } from '@mui/material';
-import { GridOnRounded, BookmarkBorderRounded, CloseRounded, AutoAwesomeRounded } from '@mui/icons-material';
+import { 
+  GridOnRounded, BookmarkBorderRounded, CloseRounded, 
+  AutoAwesomeRounded, CalendarMonthRounded, PsychologyRounded, HelpOutlineRounded, EmojiEventsRounded
+} from '@mui/icons-material';
+import OOTDCalendar from './OOTDCalendar';
 import { getProfile, toggleFollow, getFollowers, getFollowing } from '../../api/userApi';
 import { getUserPosts, getMyBookmarks } from '../../api/postApi';
 import { sendRequest, getRooms } from '../../api/chatApi';
 import useAuthStore from '../../store/authStore';
 import useThemeStore from '../../store/themeStore';
 import PostCard from '../../components/post/PostCard';
-import StyleReportModal from '../../components/profile/StyleReportModal';
+import StyleReportModal from './StyleReportModal';
+import StyleMatchModal from './StyleMatchModal';
 import toast from 'react-hot-toast';
 
 const FollowModal = ({ open, onClose, type, userId, isDark }) => {
@@ -203,8 +208,19 @@ const Profile = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalType, setModalType] = useState('followers');
   const [showReport, setShowReport] = useState(false);
+  const [showMatch, setShowMatch] = useState(false);
 
   const isMe = me?.username === username;
+
+  // 순위별 배지 색상 결정
+  const getRankBadge = (rank, wins) => {
+    if (!wins || wins <= 0) return null;
+    if (rank === 1) return { color: '#FFD700', label: '1st Style King' };
+    if (rank === 2) return { color: '#C0C0C0', label: '2nd Style King' };
+    if (rank === 3) return { color: '#CD7F32', label: '3rd Style King' };
+    return null;
+  };
+  const rankBadge = getRankBadge(profile?.win_rank, profile?.total_wins);
 
   const C = {
     bg:          isDark ? '#0A0A0A' : '#FFFFFF',
@@ -289,7 +305,8 @@ const Profile = () => {
     </Box>
   );
 
-  const displayPosts = tab === 0 ? posts : bookmarks;
+  // tab: 0=게시물, 1=캘린더(isMe), 2=저장됨(isMe)
+  const displayPosts = (isMe && tab === 2) ? bookmarks : posts;
 
   return (
     <Box sx={{ maxWidth:935, mx:'auto', backgroundColor: C.bg, minHeight:'100vh' }}>
@@ -305,6 +322,13 @@ const Profile = () => {
       <StyleReportModal
         open={showReport}
         onClose={() => setShowReport(false)}
+        isDark={isDark}
+      />
+
+      <StyleMatchModal
+        open={showMatch}
+        onClose={() => setShowMatch(false)}
+        targetUser={profile}
         isDark={isDark}
       />
 
@@ -337,11 +361,39 @@ const Profile = () => {
 
           {/* 정보 */}
           <Box sx={{ flex:1, pt:1 }}>
-            <Box sx={{ display:'flex', alignItems:'center', gap:2, mb:2, flexWrap:'wrap' }}>
-              <Typography fontWeight={300}
-                sx={{ fontSize:{ xs:18, md:24 }, color: C.text }}>
-                {profile.username}
-              </Typography>
+            <Box sx={{ mb: 2 }}>
+              {profile?.style_archetype && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                  <Typography fontSize={10} fontWeight={800} letterSpacing={2} sx={{ color: '#E8C96D', opacity: 0.8 }}>
+                    {profile.style_archetype}
+                  </Typography>
+                  <Tooltip 
+                    title={profile.style_archetype_desc ? (
+                      <Box sx={{ p: 0.5 }}><strong>{profile.style_archetype}</strong>: {profile.style_archetype_desc}</Box>
+                    ) : "AI가 당신의 스타일을 분석하여 부여한 고유한 정체성입니다."}
+                    arrow placement="top"
+                  >
+                    <HelpOutlineRounded sx={{ fontSize: 12, color: '#E8C96D', opacity: 0.5, cursor: 'help' }} />
+                  </Tooltip>
+                </Box>
+              )}
+              <Box sx={{ display:'flex', alignItems:'center', gap:2, flexWrap:'wrap' }}>
+                <Typography fontWeight={200}
+                  sx={{ fontSize:{ xs:18, md:28 }, color: C.text, letterSpacing: '0.04em', fontFamily: '"Montserrat", sans-serif' }}>
+                  {profile.username}
+                </Typography>
+                {rankBadge && (
+                  <Tooltip title={rankBadge.label} arrow>
+                    <EmojiEventsRounded sx={{ 
+                      fontSize: { xs: 18, md: 22 }, 
+                      color: rankBadge.color,
+                    }} />
+                  </Tooltip>
+                )}
+              </Box>
+            </Box>
+
+            <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:2, flexWrap:'wrap' }}>
               {isMe ? (
                 <Box sx={{ display: 'flex', gap: 1 }}>
                   <Button size="small" variant="outlined"
@@ -379,6 +431,14 @@ const Profile = () => {
                       borderRadius:2, fontWeight:700, px:3, py:0.5, fontSize:13,
                     }}>
                     {profile.is_following ? '팔로잉' : '팔로우'}
+                  </Button>
+                  <Button variant="outlined" size="small" onClick={() => setShowMatch(true)}
+                    startIcon={<PsychologyRounded sx={{ fontSize: 16 }} />}
+                    sx={{
+                      borderColor: '#E8C96D', color: '#E8C96D',
+                      borderRadius:2, fontWeight:600, px:2, py:0.5, fontSize:13,
+                    }}>
+                    케미 확인
                   </Button>
                   <Button variant="outlined" size="small" onClick={handleMessage}
                     sx={{
@@ -450,8 +510,8 @@ const Profile = () => {
             minHeight:48,
             '& .MuiTabs-scroller':{ overflow:'hidden !important' },
             '& .MuiTab-root':{
-              color: C.tabInactive, minWidth:80, fontSize:12,
-              letterSpacing:1, minHeight:48, padding:'12px 16px', overflow:'hidden',
+              color: C.tabInactive, minWidth:72, fontSize:12,
+              letterSpacing:1, minHeight:48, padding:'12px 12px', overflow:'hidden',
             },
             '& .Mui-selected':{ color: C.tabActive },
             '& .MuiTabs-indicator':{
@@ -461,14 +521,20 @@ const Profile = () => {
           <Tab icon={<GridOnRounded sx={{ fontSize:20 }} />}
             label="게시물" iconPosition="start" sx={{ gap:0.5 }} />
           {isMe && (
+            <Tab icon={<CalendarMonthRounded sx={{ fontSize:20 }} />}
+              label="캘린더" iconPosition="start" sx={{ gap:0.5 }} />
+          )}
+          {isMe && (
             <Tab icon={<BookmarkBorderRounded sx={{ fontSize:20 }} />}
               label="저장됨" iconPosition="start" sx={{ gap:0.5 }} />
           )}
         </Tabs>
       </Box>
 
-      {/* 그리드 */}
-      {displayPosts.length === 0 ? (
+      {/* 캘린더 탭 */}
+      {isMe && tab === 1 ? (
+        <OOTDCalendar posts={posts} isDark={isDark} />
+      ) : displayPosts.length === 0 ? (
         <Box sx={{ textAlign:'center', py:15 }}>
           <Typography sx={{ fontSize:48, mb:2 }}>📷</Typography>
           <Typography fontWeight={700} fontSize={20} mb={1} sx={{ color: C.text }}>

@@ -5,10 +5,11 @@ import {
   FavoriteRounded, FavoriteBorderRounded,
   BookmarkRounded, BookmarkBorderRounded,
   ChatBubbleOutlineRounded, MoreHorizRounded,
-  CheckroomRounded,
+  CheckroomRounded, RepeatRounded, LinkRounded,
+  AutoStoriesRounded, EmojiEventsRounded
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
-import { toggleLike, toggleBookmark } from '../../api/postApi';
+import { toggleLike, toggleBookmark, repostPost } from '../../api/postApi';
 import { timeAgo } from '../../utils/formatDate';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
@@ -24,6 +25,7 @@ const PostCard = ({ post: initialPost, compact = false }) => {
   const [imgIndex, setImgIndex] = useState(0);
   const [deleted, setDeleted] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState(null);
+  const [shareAnchor, setShareAnchor] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
 
   const C = {
@@ -42,9 +44,16 @@ const PostCard = ({ post: initialPost, compact = false }) => {
     menuBorder: isDark ? '#2A2A2A' : '#EBEBEB',
     menuText: isDark ? '#EFEFEF' : '#0A0A0A',
     menuHover: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+    repostBg: isDark ? 'rgba(232,201,109,0.02)' : 'rgba(232,201,109,0.03)',
   };
 
+  if (!post) return null;
+
   const isOwner = user?.id === post.user_id || user?.username === post.username;
+  const isRepost = !!post.repost_origin_id;
+  // 리포스트인 경우 원작자 정보를, 아니면 작성자 정보를 표시
+  const displayUser = isRepost && post.origin_username ? post.origin_username : post.username;
+  const displayImage = isRepost && post.origin_profile_image ? post.origin_profile_image : post.profile_image;
 
   const menuItemSx = {
     fontSize: 14, py: 1.2, px: 2.5,
@@ -75,13 +84,32 @@ const PostCard = ({ post: initialPost, compact = false }) => {
   };
 
   const handleMenuOpen = (e) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); };
+
+  const handleShareOpen = (e) => { e.stopPropagation(); setShareAnchor(e.currentTarget); };
+
+  const handleCopyLink = (e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
+    toast.success('링크가 복사됐어요!');
+    setShareAnchor(null);
+    setMenuAnchor(null);
+  };
+
+  const handleRepost = async (e) => {
+    e.stopPropagation();
+    setShareAnchor(null);
+    try {
+      await repostPost(post.id);
+      setPost(prev => ({ ...prev, repost_count: (Number(prev.repost_count) || 0) + 1 }));
+      toast.success('내 피드에 리포스트했어요!');
+    } catch (err) {
+      const msg = err.response?.data?.message || '리포스트에 실패했어요.';
+      toast.error(msg);
+    }
+  };
   const handleMenuClose = () => setMenuAnchor(null);
 
-  const handleCopyLink = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/post/${post.id}`);
-    toast.success('링크가 복사됐어요.');
-    handleMenuClose();
-  };
+
 
   const handleEdit = () => {
     handleMenuClose();
@@ -211,27 +239,51 @@ const PostCard = ({ post: initialPost, compact = false }) => {
       boxShadow: isDark ? 'none' : '0 0 0 1px rgba(0,0,0,0.05)',
     }}>
 
+      {/* 리포스트 상단 라벨 */}
+      {isRepost && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 2.5, pt: 1.5, pb: 0 }}>
+          <RepeatRounded sx={{ fontSize: 16, color: C.textSub }} />
+          <Typography fontSize={12} fontWeight={700} sx={{ color: C.textSub }}>
+            {post.username}님이 리포스트했습니다
+          </Typography>
+        </Box>
+      )}
+
       {/* 헤더 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.5 }}>
+      <Box sx={{ 
+        display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.5,
+        position: 'relative',
+        backgroundColor: isRepost ? C.repostBg : 'transparent',
+      }}>
+        {isRepost && <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, bgcolor: '#E8C96D' }} />}
         <Avatar
-          src={post.profile_image ? `http://localhost:5000${post.profile_image}` : null}
+          src={displayImage ? `http://localhost:5000${displayImage}` : null}
           sx={{
             width: 36, height: 36, cursor: 'pointer',
             bgcolor: C.avatarBg, color: '#E8C96D',
             fontWeight: 800, fontSize: 14,
             border: `1.5px solid ${C.border}`,
           }}
-          onClick={() => navigate(`/profile/${post.username}`)}>
-          {post.username?.[0]?.toUpperCase()}
+          onClick={() => navigate(`/profile/${displayUser}`)}>
+          {displayUser?.[0]?.toUpperCase()}
         </Avatar>
 
         <Box sx={{ flex: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Typography fontSize={13} fontWeight={600}
-              sx={{ cursor: 'pointer', color: C.textMain, '&:hover': { color: '#E8C96D' }, transition: 'color 0.15s' }}
-              onClick={() => navigate(`/profile/${post.username}`)}>
-              {post.username}
-            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+              <Typography fontSize={13} fontWeight={800}
+              sx={{ cursor: 'pointer', color: C.textMain, '&:hover': { color: '#E8C96D' }, transition: 'color 0.15s', letterSpacing: '-0.01em' }}
+              onClick={() => navigate(`/profile/${displayUser}`)}>
+              {displayUser}
+              </Typography>
+              {/* 작성자가 1,2,3등인 경우 뱃지 표시 (post 데이터에 담겨있다고 가정) */}
+              {post.win_rank >= 1 && post.win_rank <= 3 && (
+                <EmojiEventsRounded sx={{ 
+                  fontSize: 14, 
+                  color: post.win_rank === 1 ? '#FFD700' : post.win_rank === 2 ? '#C0C0C0' : '#CD7F32' 
+                }} />
+              )}
+            </Box>
             <Box sx={{ width: 2, height: 2, borderRadius: '50%', backgroundColor: C.dot }} />
             <Typography variant="caption" sx={{ color: C.textTime }}>
               {timeAgo(post.created_at)}
@@ -288,7 +340,7 @@ const PostCard = ({ post: initialPost, compact = false }) => {
           <MenuItem key="delete" onClick={handleDelete} sx={dangerItemSx}>게시물 삭제</MenuItem>,
         ] : [
           <MenuItem key="follow" onClick={handleFollow} sx={isFollowing ? dangerItemSx : menuItemSx}>
-            {isFollowing ? `${post.username} 팔로우 취소` : `${post.username} 팔로우`}
+            {isFollowing ? `${displayUser} 팔로우 취소` : `${displayUser} 팔로우`}
           </MenuItem>,
           <MenuItem key="goto" onClick={handleGoToPost} sx={menuItemSx}>게시물로 이동</MenuItem>,
           <MenuItem key="copy" onClick={handleCopyLink} sx={menuItemSx}>링크 복사</MenuItem>,
@@ -396,12 +448,36 @@ const PostCard = ({ post: initialPost, compact = false }) => {
           onClick={() => navigate(`/post/${post.id}`)}>
           <ChatBubbleOutlineRounded sx={{ fontSize: 22 }} />
         </IconButton>
+        {/* 공유/리포스트 버튼 */}
+        <IconButton disableRipple size="small" onClick={handleShareOpen}
+          sx={{ color: C.iconColor, p: 0.8 }}>
+          <RepeatRounded sx={{ fontSize: 22 }} />
+        </IconButton>
+        {Number(post.repost_count) > 0 && (
+          <Typography fontSize={11} sx={{ color: C.iconColor, ml: -0.4, mr: 0.4 }}>
+            {post.repost_count}
+          </Typography>
+        )}
         <Box sx={{ flex: 1 }} />
         <IconButton disableRipple size="small" onClick={handleBookmark}
           sx={{ color: post.is_bookmarked ? '#E8C96D' : C.iconColor, p: 0.8 }}>
           {post.is_bookmarked ? <BookmarkRounded sx={{ fontSize: 22 }} /> : <BookmarkBorderRounded sx={{ fontSize: 22 }} />}
         </IconButton>
       </Box>
+
+      {/* 공유 드롭다운 */}
+      <Menu anchorEl={shareAnchor} open={Boolean(shareAnchor)} onClose={() => setShareAnchor(null)}
+        onClick={e => e.stopPropagation()}
+        PaperProps={{ sx: { bgcolor: isDark ? '#161616' : '#FFFFFF', border: `1px solid ${isDark ? '#2A2A2A' : '#EBEBEB'}`, borderRadius: 2, minWidth: 170 } }}>
+        <MenuItem onClick={handleRepost} sx={menuItemSx}>
+          <RepeatRounded sx={{ fontSize: 18, mr: 1.2, color: '#E8C96D' }} />
+          내 피드에 리포스트
+        </MenuItem>
+        <MenuItem onClick={handleCopyLink} sx={menuItemSx}>
+          <LinkRounded sx={{ fontSize: 18, mr: 1.2 }} />
+          링크 복사
+        </MenuItem>
+      </Menu>
 
       {/* 좋아요 수 */}
       {post.likes_count > 0 && (
@@ -411,10 +487,14 @@ const PostCard = ({ post: initialPost, compact = false }) => {
       )}
 
       {/* 내용 */}
-      <Box sx={{ px: 2, pb: 2, cursor: 'pointer' }}
-        onClick={() => navigate(`/post/${post.id}`)}>
+      <Box sx={{ 
+        px: 2, pb: 2, cursor: 'pointer',
+        borderLeft: isRepost ? `3px solid #E8C96D` : 'none',
+        backgroundColor: isRepost ? C.repostBg : 'transparent',
+      }}
+      onClick={() => navigate(`/post/${post.id}`)}>
         {post.title && (
-          <Typography fontSize={13} fontWeight={600} mb={0.3} sx={{ color: C.textMain }}>
+          <Typography fontSize={14} fontWeight={800} mb={0.5} sx={{ color: C.textMain, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
             {post.title}
           </Typography>
         )}
@@ -424,7 +504,7 @@ const PostCard = ({ post: initialPost, compact = false }) => {
           WebkitBoxOrient: 'vertical', overflow: 'hidden',
         }}>
           <Typography component="span" fontSize={13} fontWeight={600} sx={{ color: C.textUser, mr: 0.7 }}>
-            {post.username}
+            {displayUser}
           </Typography>
           {post.content}
         </Typography>
@@ -439,11 +519,6 @@ const PostCard = ({ post: initialPost, compact = false }) => {
               </Typography>
             ))}
           </Box>
-        )}
-        {post.comments_count > 0 && (
-          <Typography variant="caption" sx={{ color: C.textTime, mt: 0.5, display: 'block' }}>
-            댓글 {post.comments_count}개 모두 보기
-          </Typography>
         )}
       </Box>
     </Box>

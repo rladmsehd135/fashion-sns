@@ -19,11 +19,15 @@ router.get('/categories', (req, res) => {
 router.get('/feed',          authMiddleware, PostController.getFeed);
 router.get('/explore',       authMiddleware, PostController.getExplore);
 router.get('/recommended',   authMiddleware, PostController.getRecommended);
+router.get('/battle/match',  authMiddleware, PostController.getBattleMatch);
+router.get('/battle/winners', authMiddleware, PostController.getBattleWinners);
+router.post('/battle/:id/vote', authMiddleware, PostController.votePost);
 router.post('/',             authMiddleware, upload.array('images', 5), PostController.create);
 router.get('/user/:id',      authMiddleware, PostController.getByUser);
 router.get('/:id',           authMiddleware, PostController.getOne);
 router.put('/:id',           authMiddleware, upload.array('images', 5), PostController.update);
 router.delete('/:id',        authMiddleware, PostController.delete);
 router.post('/:id/like',     authMiddleware, PostController.toggleLike);
+router.post('/:id/repost',   authMiddleware, PostController.repost);
 
 module.exports = router;

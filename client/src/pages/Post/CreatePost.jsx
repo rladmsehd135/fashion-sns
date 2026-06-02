@@ -8,11 +8,13 @@ import {
 import { AddPhotoAlternate, Close } from '@mui/icons-material';
 import { createPost, getCategories } from '../../api/postApi';
 import axiosInstance from '../../api/axiosInstance';
+import UserTagInput from '../../components/common/UserTagInput';
 import toast from 'react-hot-toast';
 
 const CreatePost = () => {
   const navigate = useNavigate();
   const [form, setForm] = useState({ title: '', content: '', style: '', tags: [] });
+  const [mentionedUsers, setMentionedUsers] = useState([]);
   const [images, setImages] = useState([]);
   const [previews, setPreviews] = useState([]);
   const [items, setItems] = useState([]);
@@ -85,6 +87,7 @@ const CreatePost = () => {
       formData.append('style', form.style);
       formData.append('tags', JSON.stringify(form.tags));
       formData.append('items', JSON.stringify(items));
+      formData.append('mentionedUsers', JSON.stringify(mentionedUsers.map(u => u.id)));
       images.forEach(img => formData.append('images', img));
       await createPost(formData);
       navigate('/');
@@ -173,6 +176,9 @@ const CreatePost = () => {
             ))}
           </Box>
         </Box>
+
+        {/* 사람 태그 */}
+        <UserTagInput tagged={mentionedUsers} onChange={setMentionedUsers} />
 
         {/* 아이템 태그 */}
         <Box>

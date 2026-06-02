@@ -12,3 +12,5 @@ export const getFollowing = (id) => axiosInstance.get(`/users/${id}/following`);
 export const searchUsers       = (q)        => axiosInstance.get(`/users/search?q=${q}`);
 export const getRecommendedUsers = ()       => axiosInstance.get('/users/recommended');
 export const getStyleReport    = ()         => axiosInstance.get('/users/me/style-report');
+export const blockUser         = (id)       => axiosInstance.post(`/users/${id}/block`);
+export const reportUser        = (id, reason) => axiosInstance.post(`/users/${id}/report`, { reason });

@@ -58,6 +58,31 @@ const initGroupTables = async () => {
     `ALTER TABLE chat_rooms ADD room_type VARCHAR2(10) DEFAULT 'direct'`,
     `ALTER TABLE chat_rooms ADD room_name VARCHAR2(100)`,
     `ALTER TABLE chat_rooms ADD room_image VARCHAR2(500)`,
+    `ALTER TABLE chat_rooms MODIFY request_id NULL`,
+    `ALTER TABLE chat_rooms MODIFY user1_id NULL`,
+    `ALTER TABLE chat_rooms MODIFY user2_id NULL`,
+    `ALTER TABLE chat_messages MODIFY message_type VARCHAR2(20)`,
+    `ALTER TABLE chat_messages DROP CONSTRAINT CHK_MSG_TYPE`,
+    `ALTER TABLE chat_messages ADD CONSTRAINT CHK_MSG_TYPE CHECK (message_type IN ('text', 'image', 'story_reply'))`,
+    // 게시물 사람 태그
+    `CREATE TABLE post_tags (
+       id         NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+       post_id    NUMBER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+       user_id    NUMBER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT uq_post_tag UNIQUE (post_id, user_id)
+     )`,
+    // 스토리 사람 태그
+    `CREATE TABLE story_tags (
+       id         NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+       story_id   NUMBER NOT NULL REFERENCES stories(id) ON DELETE CASCADE,
+       user_id    NUMBER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT uq_story_tag UNIQUE (story_id, user_id)
+     )`,
+    // 리포스트
+    `ALTER TABLE posts ADD repost_count NUMBER DEFAULT 0`,
+    `ALTER TABLE posts ADD repost_origin_id NUMBER`,
     `UPDATE chat_rooms SET room_type = 'direct' WHERE room_type IS NULL`,
     `CREATE TABLE group_members (
        id       NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -72,6 +97,20 @@ const initGroupTables = async () => {
        user_id     NUMBER NOT NULL REFERENCES users(id),
        last_read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
        CONSTRAINT pk_grs PRIMARY KEY (room_id, user_id)
+     )`,
+    `CREATE TABLE user_blocks (
+       id         NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+       blocker_id NUMBER NOT NULL REFERENCES users(id),
+       blocked_id NUMBER NOT NULL REFERENCES users(id),
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+       CONSTRAINT uq_user_block UNIQUE (blocker_id, blocked_id)
+     )`,
+    `CREATE TABLE user_reports (
+       id          NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+       reporter_id NUMBER NOT NULL REFERENCES users(id),
+       reported_id NUMBER NOT NULL REFERENCES users(id),
+       reason      VARCHAR2(200),
+       created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
      )`,
   ];
   for (const sql of ddl) {

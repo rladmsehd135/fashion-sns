@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { io } from 'socket.io-client';
 import useAuthStore from '../store/authStore';
 import useNotificationStore from '../store/notificationStore';
@@ -10,22 +10,45 @@ export const getSocket = () => globalSocket;
 const useSocket = () => {
   const { accessToken, isLoggedIn, user } = useAuthStore();
   const { addNotification, addUnreadChat } = useNotificationStore();
+  const socketRef = useRef(null); // Use a ref to hold the socket instance
 
   useEffect(() => {
-    if (!isLoggedIn || !accessToken) return;
+    // If not logged in or no token, disconnect any existing socket and return
+    if (!isLoggedIn || !accessToken) {
+      if (socketRef.current) {
+        console.log('User logged out, disconnecting socket.');
+        socketRef.current.disconnect();
+        socketRef.current = null;
+        globalSocket = null; // Also clear global reference
+      }
+      return;
+    }
 
-    if (!globalSocket || !globalSocket.connected) {
-      globalSocket?.disconnect();
-      globalSocket = io('http://localhost:5000', {
+    // If a socket already exists and is connected, reuse it
+    if (socketRef.current && socketRef.current.connected) {
+      return;
+    }
+
+    // Connect new socket
+    const newSocket = io('http://localhost:5000', {
         auth: { token: accessToken },
         transports: ['websocket'],
       });
-      globalSocket.on('connect', () => console.log('소켓 연결됨'));
-      globalSocket.on('disconnect', () => {
-        console.log('소켓 끊김');
+
+    newSocket.on('connect', () => console.log('소켓 연결됨'));
+    newSocket.on('disconnect', (reason) => {
+      console.log('소켓 끊김');
+      if (socketRef.current === newSocket) { // Only nullify if it's the same instance
+        socketRef.current = null;
         globalSocket = null;
-      });
-    }
+      }
+    });
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    socketRef.current = newSocket;
+    globalSocket = newSocket; // Keep global reference updated
 
     const handleNotification = (data) => {
       addNotification(data);
@@ -45,10 +68,12 @@ const useSocket = () => {
       }
     };
 
-    globalSocket.on('notification:new', handleNotification);
-    globalSocket.on('chat:message', handleChatMessage);
+    newSocket.on('notification:new', handleNotification);
+    newSocket.on('chat:message', handleChatMessage);
 
     return () => {
+      console.log('Socket useEffect cleanup running, removing listeners.');
+      // Remove listeners from the specific socket instance created in this effect run
       globalSocket?.off('notification:new', handleNotification);
       globalSocket?.off('chat:message', handleChatMessage);
     };

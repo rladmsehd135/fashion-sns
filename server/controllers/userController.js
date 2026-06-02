@@ -4,11 +4,68 @@ const { generateStyleSummary } = require('../utils/aiService');
 
 const UserController = {
 
+  blockUser: async (req, res, next) => {
+    try {
+      const targetId = parseInt(req.params.id);
+      if (targetId === req.userId) return res.status(400).json({ message: '자기 자신을 차단할 수 없습니다.' });
+      await db.query(
+        `MERGE INTO user_blocks ub USING DUAL
+         ON (ub.blocker_id = :1 AND ub.blocked_id = :2)
+         WHEN NOT MATCHED THEN INSERT (blocker_id, blocked_id) VALUES (:3, :4)`,
+        [req.userId, targetId, req.userId, targetId]
+      );
+      res.json({ message: '차단되었습니다.' });
+    } catch (err) { next(err); }
+  },
+
+  reportUser: async (req, res, next) => {
+    try {
+      const targetId = parseInt(req.params.id);
+      const { reason } = req.body;
+      if (!reason?.trim()) return res.status(400).json({ message: '신고 사유를 선택해주세요.' });
+      if (targetId === req.userId) return res.status(400).json({ message: '자기 자신을 신고할 수 없습니다.' });
+      await db.query(
+        `INSERT INTO user_reports (reporter_id, reported_id, reason) VALUES (:1, :2, :3)`,
+        [req.userId, targetId, reason.trim()]
+      );
+      res.json({ message: '신고가 접수되었습니다.' });
+    } catch (err) { next(err); }
+  },
+
+  getStylePrefs: async (req, res, next) => {
+    try {
+      const result = await db.query(
+        `SELECT style, score FROM user_style_prefs
+         WHERE user_id = :1
+         ORDER BY score DESC
+         FETCH FIRST 5 ROWS ONLY`,
+        [req.userId]
+      );
+      res.json(result.rows);
+    } catch (err) { next(err); }
+  },
+
+  getMutuals: async (req, res, next) => {
+    try {
+      const result = await db.query(
+        `SELECT u.id, u.username, u.profile_image
+         FROM follows f1
+         JOIN follows f2 ON f2.follower_id = f1.following_id AND f2.following_id = f1.follower_id
+         JOIN users u ON u.id = f1.following_id
+         WHERE f1.follower_id = :1 AND u.is_active = 1
+         ORDER BY u.username ASC`,
+        [req.userId]
+      );
+      res.json(result.rows);
+    } catch (err) { next(err); }
+  },
+
   getMe: async (req, res, next) => {
     try {
       const result = await db.query(
         `SELECT id, username, email, profile_image, bio, height, weight,
-                preferred_style, style_1, style_2, is_online, last_seen_at, created_at
+                preferred_style, style_1, style_2, is_online, last_seen_at, created_at,
+                style_archetype, style_archetype_desc
          FROM users WHERE id = :1 AND is_active = 1`,
         [req.userId]
       );
@@ -21,8 +78,12 @@ const UserController = {
     try {
       const { username } = req.params;
       const result = await db.query(
-        `SELECT u.id, u.username, u.profile_image, u.bio, u.height, u.weight,
+        `SELECT u.id, u.username, u.profile_image, u.bio, u.height, u.weight, 
+                u.style_archetype, u.style_archetype_desc, u.total_wins,
                 u.preferred_style, u.is_online, u.last_seen_at,
+                (SELECT rank FROM (
+                  SELECT id, RANK() OVER (ORDER BY total_wins DESC) as rank FROM users WHERE is_active = 1 AND total_wins > 0
+                ) WHERE id = u.id) as win_rank,
                 (SELECT COUNT(*) FROM follows WHERE following_id = u.id) AS follower_count,
                 (SELECT COUNT(*) FROM follows WHERE follower_id  = u.id) AS following_count,
                 (SELECT COUNT(*) FROM posts WHERE user_id = u.id AND is_deleted = 0) AS post_count,
@@ -63,7 +124,7 @@ const UserController = {
       }
       const updated = await db.query(
         `SELECT id, username, email, profile_image, bio, height, weight,
-              preferred_style, style_1, style_2
+              preferred_style, style_1, style_2, style_archetype, style_archetype_desc
        FROM users WHERE id = :1`, [req.userId]
       );
       res.json({ message: '프로필이 수정되었습니다.', user: updated.rows[0] });
@@ -202,7 +263,15 @@ const UserController = {
       );
 
       // 3. AI 분석 요약 생성
-      const aiReport = await generateStyleSummary(stylePrefs.rows, fitStats.rows); // await 추가
+      const aiReport = await generateStyleSummary(stylePrefs.rows, fitStats.rows);
+
+      // 4. 페르소나(archetype) DB 저장
+      if (aiReport.archetype) {
+        await db.query(
+          `UPDATE users SET style_archetype = :1, style_archetype_desc = :2 WHERE id = :3`,
+          [aiReport.archetype, aiReport.archetypeDescription, req.userId]
+        );
+      }
 
       res.json({
         styles: stylePrefs.rows,

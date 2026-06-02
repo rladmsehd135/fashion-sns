@@ -15,3 +15,7 @@ export const createGroup     = (name, memberIds) =>
   axiosInstance.post('/chat/groups', { name, memberIds });
 export const getGroupMembers = (id) =>
   axiosInstance.get(`/chat/groups/${id}/members`);
+export const getMutuals      = () =>
+  axiosInstance.get('/users/me/mutuals');
+export const leaveGroup      = (id) =>
+  axiosInstance.delete(`/chat/groups/${id}/leave`);

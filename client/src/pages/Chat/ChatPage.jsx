@@ -8,6 +8,7 @@ import {
 import {
   ArrowBackRounded, SendRounded,
   ImageRounded, MoreHorizRounded, GroupAddRounded, CloseRounded,
+  ChatBubbleRounded,
 } from '@mui/icons-material';
 import { getRooms, getMessages, readMessages, getRequests, acceptRequest, rejectRequest, uploadChatImage, getGroupMembers, leaveGroup } from '../../api/chatApi';
 import { blockUser, reportUser } from '../../api/userApi';
@@ -17,6 +18,7 @@ import useAuthStore from '../../store/authStore';
 import { getSocket } from '../../hooks/useSocket';
 import { timeAgo } from '../../utils/formatDate';
 import toast from 'react-hot-toast';
+import confirmToast from '../../utils/confirmToast';
 import useNotificationStore from '../../store/notificationStore';
 import useThemeStore from '../../store/themeStore';
 
@@ -409,24 +411,25 @@ export default function ChatPage() {
     );
   };
 
-  const handleContextBlock = async (overrideRoom) => {
+  const handleContextBlock = (overrideRoom) => {
     const room = overrideRoom || contextMenu?.room;
     setContextMenu(null);
     if (!room?.partner_id && !room?.id) return;
     const targetId = room.partner_id;
     const targetName = room.partner_username;
     if (!targetId) return;
-    if (!window.confirm(`${targetName}님을 차단하시겠어요?`)) return;
-    try {
-      await blockUser(targetId);
-      if (room.id) {
-        setRooms(prev => prev.filter(r => r.id !== room.id));
-        if (activeRoom?.id === room.id) setActiveRoom(null);
+    confirmToast(`${targetName}님을 차단하시겠어요?`, async () => {
+      try {
+        await blockUser(targetId);
+        if (room.id) {
+          setRooms(prev => prev.filter(r => r.id !== room.id));
+          if (activeRoom?.id === room.id) setActiveRoom(null);
+        }
+        toast.success('차단되었습니다.');
+      } catch {
+        toast.error('잠시 후 다시 시도해주세요.');
       }
-      toast.success('차단되었습니다.');
-    } catch {
-      toast.error('잠시 후 다시 시도해주세요.');
-    }
+    }, { confirmText: '차단', danger: true });
   };
 
   const openMemberAction = async (action, roomId) => {
@@ -1073,7 +1076,7 @@ export default function ChatPage() {
           alignItems: 'center', justifyContent: 'center',
           flexDirection: 'column', gap: 2, backgroundColor: C.bg,
         }}>
-          <Typography sx={{ fontSize: 48, opacity: 0.1 }}>💬</Typography>
+          <ChatBubbleRounded sx={{ fontSize: 48, color: isDark ? '#1E1E1E' : '#E8E8E8' }} />
           <Typography fontSize={14} sx={{ color: C.textSub }}>
             채팅방을 선택해주세요
           </Typography>

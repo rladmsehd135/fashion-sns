@@ -60,6 +60,7 @@ export default function Login() {
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: '#080808', p: 2,
       overflow: 'hidden', position: 'relative',
+      animation: 'pageEnter 0.28s cubic-bezier(0.22,1,0.36,1) both',
       '&::before': {
         content: '""', position: 'absolute',
         top: '-15%', left: '40%', width: 600, height: 600,
@@ -70,19 +71,12 @@ export default function Login() {
       <Box sx={{ width: '100%', maxWidth: 420, position: 'relative', zIndex: 1 }}>
 
         {/* 로고 */}
-        <Box sx={{ textAlign: 'center', mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5, mb: 1 }}>
-            <BrandMark size={38} />
-            <Typography fontWeight={900} letterSpacing={5} fontSize={26}
-              sx={{
-                background: 'linear-gradient(135deg,#E8C96D,#D4AF37)',
-                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-              }}>
-              FITLOG
-            </Typography>
+        <Box sx={{ textAlign: 'center', mb: 5 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1.5 }}>
+            <BrandMark size={44} variant="full" isDark={true} />
           </Box>
-          <Typography sx={{ color: '#252525', letterSpacing: 4, fontSize: 9, fontWeight: 500 }}>
-            FASHION ARCHIVE SNS
+          <Typography sx={{ color: '#2A2A2A', letterSpacing: '0.4em', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', fontFamily: '"Montserrat", sans-serif' }}>
+            Style · Archive · Community
           </Typography>
         </Box>
 

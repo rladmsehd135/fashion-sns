@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Box, Typography } from '@mui/material';
-import { AccessibilityNewRounded } from '@mui/icons-material';
+import { AccessibilityNewRounded, AutoAwesomeRounded, GridViewRounded } from '@mui/icons-material';
 import PostCard from '../../components/post/PostCard';
 import axiosInstance from '../../api/axiosInstance';
-import { getExplore } from '../../api/postApi';
+import { getExplore, getRecommended } from '../../api/postApi';
 import useAuthStore from '../../store/authStore';
 import useThemeStore from '../../store/themeStore';
 import toast from 'react-hot-toast';
@@ -15,6 +15,7 @@ const Explore = () => {
   const isDark    = mode === 'dark';
   const [searchParams] = useSearchParams();
 
+  const [tab,        setTab]        = useState('all'); // 'all' | 'foryou'
   const [style,      setStyle]      = useState(() => searchParams.get('style') || '');
   const [styleList,  setStyleList]  = useState([]);
   const [posts,      setPosts]      = useState([]);
@@ -26,7 +27,7 @@ const Explore = () => {
 
   useEffect(() => {
     axiosInstance.get('/users/styles/list')
-      .then(res => setStyleList([{ value:'', label:'전체', icon:'🔍' }, ...res.data]))
+      .then(res => setStyleList([{ value:'', label:'전체', icon:null }, ...res.data]))
       .catch(() => {});
   }, []);
 
@@ -34,7 +35,9 @@ const Explore = () => {
     if (loading) return;
     setLoading(true);
     try {
-      const res = await getExplore(style, targetPage, bodyFilter);
+      const res = tab === 'foryou'
+        ? await getRecommended(targetPage)
+        : await getExplore(style, targetPage, bodyFilter);
       const newPosts = res.data || [];
       setPosts(prev => isReset ? newPosts : [...prev, ...newPosts]);
       setHasMore(newPosts.length === 10);
@@ -43,14 +46,14 @@ const Explore = () => {
     } finally {
       setLoading(false);
     }
-  }, [style, bodyFilter]);
+  }, [tab, style, bodyFilter]);
 
   useEffect(() => {
     setPosts([]);
     setPage(1);
     setHasMore(true);
     fetchPosts(1, true);
-  }, [style, bodyFilter]);
+  }, [tab, style, bodyFilter]);
 
   useEffect(() => {
     if (!bottomRef.current) return;
@@ -84,10 +87,35 @@ const Explore = () => {
           : '0 2px 12px rgba(0,0,0,0.06)',
         px: 2, py: 1.4,
       }}>
+        {/* 전체 / 추천 탭 */}
+        <Box sx={{ display: 'flex', gap: 0.5, mb: 1 }}>
+          {[
+            { key: 'all', label: '전체' },
+            { key: 'foryou', label: '추천', icon: <AutoAwesomeRounded sx={{ fontSize: 12 }} /> },
+          ].map(t => (
+            <Box key={t.key} onClick={() => setTab(t.key)} sx={{
+              display: 'flex', alignItems: 'center', gap: 0.4,
+              px: 1.4, py: 0.5, borderRadius: 20, cursor: 'pointer',
+              fontSize: 12, fontWeight: tab === t.key ? 800 : 500,
+              transition: 'all 0.15s',
+              ...(tab === t.key ? {
+                backgroundColor: isDark ? '#EFEFEF' : '#0A0A0A',
+                color: isDark ? '#0A0A0A' : '#FFFFFF',
+              } : {
+                color: isDark ? '#606060' : '#888888',
+                '&:hover': { color: isDark ? '#A0A0A0' : '#444444' },
+              }),
+            }}>
+              {t.icon}
+              <Typography fontSize={12} fontWeight="inherit" sx={{ color: 'inherit' }}>{t.label}</Typography>
+            </Box>
+          ))}
+        </Box>
+
         <Box sx={{
-          display: 'flex', gap: 0.8, alignItems: 'center',
+          display: tab === 'foryou' ? 'none' : 'flex',
+          gap: 0.8, alignItems: 'center',
           overflowX: 'auto',
-          // 크로스브라우저 스크롤바 숨김
           scrollbarWidth: 'none',
           msOverflowStyle: 'none',
           '&::-webkit-scrollbar': { display: 'none' },
@@ -164,8 +192,22 @@ const Explore = () => {
         </Box>
       </Box>
 
+      {/* 추천 탭 안내 배너 */}
+      {tab === 'foryou' && (
+        <Box sx={{
+          px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 0.8,
+          backgroundColor: isDark ? 'rgba(232,201,109,0.05)' : 'rgba(232,201,109,0.08)',
+          borderBottom: `1px solid ${isDark ? 'rgba(232,201,109,0.12)' : 'rgba(232,201,109,0.18)'}`,
+        }}>
+          <AutoAwesomeRounded sx={{ fontSize: 13, color: '#E8C96D' }} />
+          <Typography fontSize={12} sx={{ color: '#E8C96D', fontWeight: 600 }}>
+            내 스타일 취향을 분석한 맞춤 게시물이에요
+          </Typography>
+        </Box>
+      )}
+
       {/* 체형 필터 안내 배너 */}
-      {bodyFilter && user?.height && user?.weight && (
+      {tab === 'all' && bodyFilter && user?.height && user?.weight && (
         <Box sx={{
           px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 0.8,
           backgroundColor: isDark ? 'rgba(232,201,109,0.07)' : 'rgba(232,201,109,0.1)',
@@ -187,9 +229,12 @@ const Explore = () => {
         </Box>
       ) : posts.length === 0 ? (
         <Box sx={{ textAlign: 'center', py: 15 }}>
-          <Typography sx={{ fontSize: 40, mb: 2 }}>
-            {bodyFilter ? '👤' : '🔍'}
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+            {bodyFilter
+              ? <AccessibilityNewRounded sx={{ fontSize: 48, color: isDark ? '#2A2A2A' : '#D0D0D0' }} />
+              : <GridViewRounded        sx={{ fontSize: 48, color: isDark ? '#2A2A2A' : '#D0D0D0' }} />
+            }
+          </Box>
           <Typography fontWeight={700} mb={1}>게시물이 없어요</Typography>
           <Typography variant="body2" color="text.secondary" fontSize={13}>
             {bodyFilter

@@ -14,6 +14,7 @@ import UserTagInput from '../common/UserTagInput';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
 import toast from 'react-hot-toast';
+import confirmToast from '../../utils/confirmToast';
 
 const timeAgo = (d) => {
   if (!d) return '';
@@ -31,17 +32,19 @@ export default function StoryBar() {
   const { mode } = useThemeStore();
   const isDark = mode === 'dark';
 
-  const [stories,    setStories]    = useState([]);
-  const [viewing,    setViewing]    = useState(null);   // 현재 보고있는 유저
-  const [userStories, setUserStories] = useState([]);
-  const [storyIdx,   setStoryIdx]   = useState(0);
-  const [progress,   setProgress]   = useState(0);
-  const [isPaused,   setIsPaused]   = useState(false);
-  const [likedIds,   setLikedIds]   = useState(new Set()); // ID 기준 — 재진입해도 유지
-  const [message,    setMessage]    = useState('');
-  const [sending,    setSending]    = useState(false);
+  const [stories,       setStories]       = useState([]);
+  const [viewing,       setViewing]       = useState(null);
+  const [userStories,   setUserStories]   = useState([]);
+  const [storyIdx,      setStoryIdx]      = useState(0);
+  const [progress,      setProgress]      = useState(0);
+  const [isPaused,      setIsPaused]      = useState(false);
+  const [likedIds,      setLikedIds]      = useState(new Set());
+  const [message,       setMessage]       = useState('');
+  const [sending,       setSending]       = useState(false);
+  const [suggested,     setSuggested]     = useState([]);
+  const [followedSug,   setFollowedSug]   = useState({});
 
-  const [uploadPreview, setUploadPreview] = useState(null); // { file, previewUrl }
+  const [uploadPreview, setUploadPreview] = useState(null);
   const [uploadTagged,  setUploadTagged]  = useState([]);
 
   const fileRef      = useRef(null);
@@ -58,6 +61,11 @@ export default function StoryBar() {
 
   useEffect(() => {
     getStories().then(r => setStories(r.data)).catch(() => {});
+    import('../../api/axiosInstance').then(({ default: axios }) => {
+      axios.get('/users/recommended?limit=10')
+        .then(r => setSuggested(r.data || []))
+        .catch(() => {});
+    });
   }, []);
 
   // 스토리 전환: 메시지·진행률 초기화 (좋아요는 ID 기준 유지)
@@ -192,18 +200,19 @@ export default function StoryBar() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm('이 스토리를 삭제할까요?')) return;
-    try {
-      const { deleteStory } = await import('../../api/postApi');
-      await deleteStory(userStories[storyIdx].id);
-      toast.success('삭제됐어요.');
-      const updated = userStories.filter((_, i) => i !== storyIdx);
-      setUserStories(updated);
-      if (updated.length === 0) setViewing(null);
-      else setStoryIdx(Math.min(storyIdx, updated.length - 1));
-      getStories().then(r => setStories(r.data)).catch(() => {});
-    } catch { toast.error('삭제에 실패했어요.'); }
+  const handleDelete = () => {
+    confirmToast('이 스토리를 삭제할까요?', async () => {
+      try {
+        const { deleteStory } = await import('../../api/postApi');
+        await deleteStory(userStories[storyIdx].id);
+        toast.success('삭제됐어요.');
+        const updated = userStories.filter((_, i) => i !== storyIdx);
+        setUserStories(updated);
+        if (updated.length === 0) setViewing(null);
+        else setStoryIdx(Math.min(storyIdx, updated.length - 1));
+        getStories().then(r => setStories(r.data)).catch(() => {});
+      } catch { toast.error('삭제에 실패했어요.'); }
+    });
   };
 
   const handleLike = () => {
@@ -255,8 +264,18 @@ export default function StoryBar() {
     }
   }, [isPaused, goNextUser]);
 
+  const handleFollowSuggested = async (userId, username) => {
+    try {
+      const { toggleFollow } = await import('../../api/userApi');
+      await toggleFollow(userId);
+      setFollowedSug(prev => ({ ...prev, [userId]: true }));
+      toast.success(`${username}님을 팔로우했습니다.`);
+    } catch { toast.error('잠시 후 다시 시도해주세요.'); }
+  };
+
   const currentStory = userStories[storyIdx];
   const myStory      = stories.find(s => s.user_id === user?.id);
+  const otherStories = stories.filter(s => s.user_id !== user?.id);
   const isOwn        = viewing?.user_id === user?.id;
   const isLiked      = likedIds.has(currentStory?.id);
 
@@ -293,7 +312,7 @@ export default function StoryBar() {
         </Box>
 
         {/* 다른 유저 스토리 */}
-        {stories.filter(s => s.user_id !== user?.id).map(su => {
+        {otherStories.map(su => {
           const viewed = su.viewed_count >= su.story_count;
           return (
             <Box key={su.user_id} sx={{ display:'flex', flexDirection:'column', alignItems:'center', gap:0.8, flexShrink:0 }}>
@@ -314,6 +333,46 @@ export default function StoryBar() {
             </Box>
           );
         })}
+
+        {/* 스토리 없을 때 — 추천 유저 */}
+        {otherStories.length === 0 && suggested.filter(u => !followedSug[u.id]).slice(0, 8).map(u => (
+          <Box key={u.id} sx={{ display:'flex', flexDirection:'column', alignItems:'center', gap:0.8, flexShrink:0 }}>
+            <Box sx={{ position:'relative' }}>
+              <Box
+                onClick={() => navigate(`/profile/${u.username}`)}
+                sx={{
+                  width:62, height:62, borderRadius:'50%', cursor:'pointer',
+                  background: isDark ? 'linear-gradient(45deg,#2A2A2A,#222)' : 'linear-gradient(45deg,#E0E0E0,#D0D0D0)',
+                  p:'2px',
+                }}>
+                <Avatar
+                  src={u.profile_image ? `http://localhost:5000${u.profile_image}` : null}
+                  sx={{ width:'100%', height:'100%', bgcolor: isDark ? '#1A1A1A' : '#F0F0F0', color: isDark ? '#888' : '#999', fontWeight:700, fontSize:20,
+                    border: isDark ? '2px solid #0A0A0A' : '2px solid #FFFFFF' }}>
+                  {u.username?.[0]?.toUpperCase()}
+                </Avatar>
+              </Box>
+              {/* 팔로우 버튼 */}
+              <Box
+                onClick={() => handleFollowSuggested(u.id, u.username)}
+                sx={{
+                  position:'absolute', bottom:0, right:0,
+                  width:22, height:22, borderRadius:'50%',
+                  backgroundColor:'#0095F6',
+                  border: isDark ? '2px solid #0A0A0A' : '2px solid #FFFFFF',
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  cursor:'pointer',
+                  '&:hover':{ backgroundColor:'#1877F2' },
+                }}>
+                <PersonAddRounded sx={{ fontSize:12, color:'#fff' }} />
+              </Box>
+            </Box>
+            <Typography variant="caption"
+              sx={{ fontSize:11, color: isDark ? '#888' : '#999', maxWidth:62, textAlign:'center', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {u.username}
+            </Typography>
+          </Box>
+        ))}
       </Box>
 
       <input ref={fileRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleUpload} />

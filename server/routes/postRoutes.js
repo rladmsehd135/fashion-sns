@@ -18,6 +18,7 @@ router.get('/categories', (req, res) => {
 
 router.get('/feed',          authMiddleware, PostController.getFeed);
 router.get('/explore',       authMiddleware, PostController.getExplore);
+router.get('/tag/:tag',      authMiddleware, PostController.getByTag);
 router.get('/recommended',   authMiddleware, PostController.getRecommended);
 router.get('/battle/match',  authMiddleware, PostController.getBattleMatch);
 router.get('/battle/winners', authMiddleware, PostController.getBattleWinners);
@@ -28,6 +29,8 @@ router.get('/:id',           authMiddleware, PostController.getOne);
 router.put('/:id',           authMiddleware, upload.array('images', 5), PostController.update);
 router.delete('/:id',        authMiddleware, PostController.delete);
 router.post('/:id/like',     authMiddleware, PostController.toggleLike);
+router.post('/:id/report',   authMiddleware, PostController.reportPost);
 router.post('/:id/repost',   authMiddleware, PostController.repost);
+router.delete('/:id/repost', authMiddleware, PostController.unrepost);
 
 module.exports = router;

@@ -34,6 +34,7 @@ app.use('/api/bookmarks',     bookmarkRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/stories', storyRoutes);
 app.use('/api/ranking', rankingRoutes);
+app.use('/api/ai',      require('./routes/aiRoutes'));
 
 
 app.use(errorHandler);

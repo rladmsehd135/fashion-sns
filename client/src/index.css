@@ -1,32 +1,161 @@
-/* Pretendard는 npm 패키지로 main.jsx에서 직접 임포트합니다. */
-* {
+/* ── 리셋 ── */
+*, *::before, *::after {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+/* ── 디자인 토큰 (CSS 변수) ── */
+:root {
+  --gold:       #E8C96D;
+  --gold-dim:   #D4AF37;
+  --gold-glow:  rgba(232, 201, 109, 0.35);
+  --radius-sm:  8px;
+  --radius-md:  12px;
+  --radius-lg:  16px;
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 0.12s;
+  --duration-base: 0.2s;
+  --duration-slow: 0.35s;
+}
+
+/* ── 바디 ── */
 body {
   background-color: #0A0A0A;
   color: #F0F0F0;
-  font-family: 'Pretendard', sans-serif;
+  font-family: 'Pretendard', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
 }
 
-/* 스크롤바 */
-::-webkit-scrollbar { width: 3px; height: 3px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #2A2A2A; border-radius: 10px; }
-::-webkit-scrollbar-thumb:hover { background: #E8C96D; }
+/* ── 스크롤바 (웹킷) ── */
+::-webkit-scrollbar            { width: 4px; height: 4px; }
+::-webkit-scrollbar-track      { background: transparent; }
+::-webkit-scrollbar-thumb      { background: #252525; border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover{ background: var(--gold); }
 
+/* ── 텍스트 선택 ── */
+::selection {
+  background-color: rgba(232, 201, 109, 0.25);
+  color: #F0F0F0;
+}
+
+/* ── 링크 ── */
 a { text-decoration: none; color: inherit; }
 
-/* 이미지 드래그 방지 */
-img { -webkit-user-drag: none; user-select: none; }
+/* ── 이미지 ── */
+img {
+  -webkit-user-drag: none;
+  user-select: none;
+  display: block;
+}
 
-/* 부드러운 전환 */
-* { transition: background-color 0.15s ease, border-color 0.15s ease; }
+/* ── 포커스 (키보드 접근성 유지, 마우스는 숨김) ── */
+*:focus         { outline: none; }
+*:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
-/* 포커스 아웃라인 제거 */
-*:focus { outline: none; }
-*:focus-visible { outline: 2px solid #E8C96D; outline-offset: 2px; }
+/* ── input autofill 스타일 ── */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #111 inset;
+  -webkit-text-fill-color: #F0F0F0;
+  caret-color: #F0F0F0;
+}
+
+/* ── transition: 과도한 전역 적용 제거 → 상호작용 요소만 ── */
+a, button, [role="button"], input, select, textarea,
+.MuiButtonBase-root, .MuiIconButton-root, .MuiMenuItem-root {
+  transition:
+    background-color var(--duration-base) var(--ease-in-out),
+    border-color     var(--duration-base) var(--ease-in-out),
+    color            var(--duration-fast) var(--ease-in-out),
+    opacity          var(--duration-base) var(--ease-in-out),
+    box-shadow       var(--duration-base) var(--ease-in-out),
+    transform        var(--duration-base) var(--ease-out);
+}
+
+/* ── 키프레임 ── */
+
+/* 스켈레톤 shimmer */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position:  400px 0; }
+}
+
+/* 좋아요 하트 팝 */
+@keyframes heartPop {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.45); }
+  60%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+/* 페이지 진입 */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 페이지 전환 — 더 섬세한 버전 */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(7px) scale(0.997);
+    filter: blur(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+/* 뱃지/토스트 팝 */
+@keyframes popIn {
+  0%   { opacity: 0; transform: scale(0.7); }
+  70%  { transform: scale(1.07); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* 미세 흔들림 (에러 상태) */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-6px); }
+  40%, 80% { transform: translateX(6px); }
+}
+
+/* ── 유틸리티 클래스 ── */
+.fade-slide-up { animation: fadeSlideUp var(--duration-slow) var(--ease-out) both; }
+.pop-in        { animation: popIn 0.25s var(--ease-out) both; }
+
+/* ── 고품질 텍스트 렌더링 ── */
+h1, h2, h3, h4, h5, h6,
+.MuiTypography-h1, .MuiTypography-h2, .MuiTypography-h3 {
+  font-family: 'Montserrat', 'Pretendard', sans-serif;
+  font-feature-settings: 'kern' 1, 'liga' 1;
+}
+
+/* ── 숫자는 Montserrat로 테이블 수자 정렬 ── */
+.montserrat-num {
+  font-family: 'Montserrat', sans-serif;
+  font-feature-settings: 'tnum' 1;
+}
+
+/* ── MUI 카드 hover 자연스럽게 ── */
+.MuiCard-root {
+  will-change: transform;
+}
+
+/* ── 이미지 로딩 중 플레이스홀더 블러 효과 ── */
+img[src=""] { filter: blur(8px); }
+
+/* ── 모바일 탭 하이라이트 제거 ── */
+* { -webkit-tap-highlight-color: transparent; }

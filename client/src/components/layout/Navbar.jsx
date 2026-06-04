@@ -9,7 +9,9 @@ import {
   HomeRounded, ExploreRounded, AddBoxRounded,
   PersonRounded, LogoutRounded, FavoriteBorderRounded,
   SendRounded, SearchRounded, LeaderboardRounded, SportsEsportsRounded,
-  DarkModeRounded, LightModeRounded, SettingsRounded,
+  DarkModeRounded, LightModeRounded, SettingsRounded, AutoAwesomeRounded,
+  PersonAddRounded, FavoriteRounded, ChatBubbleRounded,
+  WhatshotRounded, ReplyRounded, NotificationsRounded,
 } from '@mui/icons-material';
 import toast from 'react-hot-toast';
 import useAuthStore from '../../store/authStore';
@@ -19,6 +21,7 @@ import useThemeStore from '../../store/themeStore';
 import { logout as logoutApi } from '../../api/authApi';
 import axiosInstance from '../../api/axiosInstance';
 import MiniChat from '../common/MiniChat';
+import BrandMark from '../common/BrandMark';
 
 const NotiItem = ({ n, notiIcon, notiText, timeAgoNoti }) => {
   const navigate = useNavigate();
@@ -126,13 +129,14 @@ export default function Navbar() {
   }, [isLoggedIn]);
 
   const navItems = [
-    { label:'홈',     icon:<HomeRounded />,        path:'/' },
-    { label:'탐색',   icon:<ExploreRounded />,     path:'/explore' },
-    { label:'검색',   icon:<SearchRounded />,      path:'/search' },
-    { label:'배틀',   icon:<SportsEsportsRounded />, path:'/battle' },
-    { label:'랭킹',   icon:<LeaderboardRounded />, path:'/ranking' },
-    { label:'업로드', icon:<AddBoxRounded />,      path:'/post/create' },
-    { label:'프로필', icon:<PersonRounded />,      path:`/profile/${user?.username}` },
+    { label:'홈',     icon:<HomeRounded />,           path:'/' },
+    { label:'탐색',   icon:<ExploreRounded />,        path:'/explore' },
+    { label:'검색',   icon:<SearchRounded />,         path:'/search' },
+    { label:'AI코디', icon:<AutoAwesomeRounded />,    path:'/outfit-ai', highlight: true },
+    { label:'배틀',   icon:<SportsEsportsRounded />,  path:'/battle' },
+    { label:'랭킹',   icon:<LeaderboardRounded />,    path:'/ranking' },
+    { label:'업로드', icon:<AddBoxRounded />,         path:'/post/create' },
+    { label:'프로필', icon:<PersonRounded />,         path:`/profile/${user?.username}` },
   ];
 
   const isActive = (path) =>
@@ -201,12 +205,13 @@ export default function Navbar() {
   };
 
   const notiIcon = (type) => {
-    if (type === 'follow')      return '👤';
-    if (type === 'like')        return '❤️';
-    if (type === 'comment')     return '💬';
-    if (type === 'story_like')  return '🔥';
-    if (type === 'story_reply') return '💬';
-    return '🔔';
+    const s = { fontSize: 10 };
+    if (type === 'follow')      return <PersonAddRounded    sx={{ ...s, color: '#4CAF50' }} />;
+    if (type === 'like')        return <FavoriteRounded     sx={{ ...s, color: '#FF4D6D' }} />;
+    if (type === 'comment')     return <ChatBubbleRounded   sx={{ ...s, color: '#4A90D9' }} />;
+    if (type === 'story_like')  return <WhatshotRounded     sx={{ ...s, color: '#FF6B35' }} />;
+    if (type === 'story_reply') return <ReplyRounded        sx={{ ...s, color: '#AB7FD4' }} />;
+    return                             <NotificationsRounded sx={{ ...s, color: '#E8C96D' }} />;
   };
 
   const notiText = (n) => {
@@ -251,56 +256,63 @@ export default function Navbar() {
     return !(now.getFullYear() === d.getFullYear() && now.getMonth() === d.getMonth());
   });
 
-  const SideItem = ({ icon, label, path, onClick, badge }) => {
+  const SideItem = ({ icon, label, path, onClick, badge, highlight }) => {
     const active = path ? isActive(path) : false;
-    const textTransition = expanded
-      ? 'max-width 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease 0.06s'
-      : 'max-width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.1s ease';
+    const hlColor = '#E8C96D';
+    const txtTransition = expanded
+      ? 'max-width 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease 0.07s'
+      : 'max-width 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.1s ease';
     return (
       <Tooltip title={!expanded ? label : ''} placement="right" arrow>
         <Box
           onClick={onClick || (() => navigate(path))}
           sx={{
             display:'flex', alignItems:'center',
-            mx:1, borderRadius:2, cursor:'pointer',
-            color: active ? C.text : C.textSub,
-            backgroundColor: active ? C.active : 'transparent',
-            position:'relative',
-            transition:'background-color 0.15s ease, color 0.15s ease',
-            '&:hover':{ color: C.text, backgroundColor: C.hover },
-            '& svg':{ fontSize:24, transition:'transform 0.15s ease' },
-            '&:hover svg':{ transform:'scale(1.1)' },
+            mx:1, borderRadius:2.5, cursor:'pointer',
+            color: highlight ? hlColor : (active ? C.text : C.textSub),
+            backgroundColor: active
+              ? (highlight ? 'rgba(232,201,109,0.1)' : (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.06)'))
+              : 'transparent',
+            position:'relative', overflow:'hidden',
+            transition:'background-color 0.18s, color 0.15s',
+            '&:hover': {
+              color: highlight ? hlColor : C.text,
+              backgroundColor: highlight ? 'rgba(232,201,109,0.12)' : C.hover,
+            },
+            '& svg': { fontSize: 21, transition:'transform 0.18s cubic-bezier(0.22,1,0.36,1)' },
+            '&:hover svg': { transform:'scale(1.12)' },
           }}>
-          {/* 아이콘 — 항상 52px 고정 존에 가운데 정렬 */}
-          <Box sx={{
-            width:52, height:44,
-            display:'flex', alignItems:'center', justifyContent:'center',
-            flexShrink:0,
-          }}>
-            {badge !== undefined ? (
-              <Badge badgeContent={badge} color="error"
-                sx={{ '& .MuiBadge-badge':{ fontSize:9, minWidth:16, height:16, top:-2, right:-2 } }}>
-                {icon}
-              </Badge>
-            ) : icon}
+          {/* 액티브 인디케이터 */}
+          {active && (
+            <Box sx={{
+              position:'absolute', left:0, top:'22%', bottom:'22%',
+              width:2.5, borderRadius:'0 2px 2px 0',
+              background:'linear-gradient(180deg, #F2D060, #C8991A)',
+            }} />
+          )}
+          {/* 아이콘 */}
+          <Box sx={{ width:48, height:42, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            {badge !== undefined
+              ? <Badge badgeContent={badge} color="error"
+                  sx={{ '& .MuiBadge-badge':{ fontSize:9, minWidth:15, height:15, top:-1, right:-1, fontWeight:700 } }}>
+                  {icon}
+                </Badge>
+              : icon}
           </Box>
-          {/* 텍스트 — 슬라이드인 */}
-          <Typography fontWeight={active ? 700 : 400} fontSize={14}
+          {/* 텍스트 */}
+          <Typography
+            fontWeight={active ? 700 : 500}
+            fontSize={13.5}
+            letterSpacing={active ? '0.01em' : 0}
             sx={{
               whiteSpace:'nowrap', overflow:'hidden',
               maxWidth: expanded ? 140 : 0,
               opacity: expanded ? 1 : 0,
-              transition: textTransition,
+              transition: txtTransition,
+              color:'inherit',
             }}>
             {label}
           </Typography>
-          {active && (
-            <Box sx={{
-              position:'absolute', left:0, top:'20%', bottom:'20%',
-              width:3, borderRadius:'0 3px 3px 0',
-              backgroundColor:'#E8C96D',
-            }} />
-          )}
         </Box>
       </Tooltip>
     );
@@ -329,38 +341,36 @@ export default function Navbar() {
           <Box onClick={() => navigate('/')}
             sx={{
               display:'flex', alignItems:'center',
-              mx:1, mb:2, borderRadius:2, cursor:'pointer',
-              transition:'background-color 0.15s',
+              mx:1, mb:2.5, px:0.5, py:0.5, borderRadius:2.5, cursor:'pointer',
+              transition:'background-color 0.18s',
               '&:hover':{ backgroundColor: C.hover },
             }}>
-            <Box sx={{ width:52, height:48, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <Box sx={{
-                width:32, height:32, borderRadius:2,
-                background:'linear-gradient(135deg, #E8C96D, #B8952D)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-              }}>
-                <Typography fontWeight={900} fontSize={16} sx={{ color:'#0A0A0A', lineHeight:1 }}>F</Typography>
-              </Box>
+            {/* 아이콘 — 항상 표시 */}
+            <Box sx={{ width:48, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <BrandMark size={34} variant="icon" isDark={isDark} />
             </Box>
+            {/* 워드마크 — expanded 시 슬라이드인 */}
             <Box sx={{
               overflow:'hidden',
-              maxWidth: expanded ? 140 : 0,
-              opacity: expanded ? 1 : 0,
+              maxWidth: expanded ? 160 : 0,
+              opacity:  expanded ? 1 : 0,
               transition: expanded
-                ? 'max-width 0.32s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease 0.06s'
-                : 'max-width 0.22s cubic-bezier(0.4,0,0.2,1), opacity 0.1s ease',
+                ? 'max-width 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.2s ease 0.07s'
+                : 'max-width 0.2s cubic-bezier(0.4,0,0.2,1), opacity 0.1s ease',
             }}>
-              <Typography fontWeight={900} letterSpacing={5} fontSize={18}
-                sx={{
-                  background:'linear-gradient(135deg, #E8C96D, #D4AF37)',
+              <Box sx={{ display:'flex', flexDirection:'column', lineHeight:1 }}>
+                <Typography sx={{
+                  fontFamily:'"Montserrat", sans-serif', fontWeight:900,
+                  fontSize:17, letterSpacing:'0.14em', lineHeight:1, whiteSpace:'nowrap',
+                  background:'linear-gradient(135deg, #E8C96D 0%, #C8991A 100%)',
                   WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
-                  lineHeight:1, whiteSpace:'nowrap', fontFamily: '"Montserrat", sans-serif'
-                }}>
-                FITLOG
-              </Typography>
-              <Typography sx={{ color: isDark ? '#444' : '#999', letterSpacing:'0.3em', fontSize:7, fontWeight: 800, lineHeight:1.5, whiteSpace:'nowrap', textTransform: 'uppercase' }}>
-                FASHION ARCHIVE
-              </Typography>
+                }}>FITLOG</Typography>
+                <Typography sx={{
+                  fontFamily:'"Montserrat", sans-serif', fontWeight:700,
+                  fontSize:7.5, letterSpacing:'0.3em', lineHeight:1, mt:'3px',
+                  color: isDark ? '#3A3A3A' : '#C0C0C0', whiteSpace:'nowrap', textTransform:'uppercase',
+                }}>Fashion Archive</Typography>
+              </Box>
             </Box>
           </Box>
 
@@ -441,22 +451,7 @@ export default function Navbar() {
           display:'flex', alignItems:'center', justifyContent:'space-between',
           px:2, height:52,
         }}>
-          <Box sx={{ display:'flex', alignItems:'center', gap:1 }}>
-            <Box sx={{
-              width:26, height:26, borderRadius:1.5,
-              background:'linear-gradient(135deg, #E8C96D, #B8952D)',
-              display:'flex', alignItems:'center', justifyContent:'center',
-            }}>
-              <Typography fontWeight={900} fontSize={13} sx={{ color:'#0A0A0A' }}>F</Typography>
-            </Box>
-            <Typography fontWeight={900} letterSpacing={3} fontSize={17}
-              sx={{
-                background:'linear-gradient(135deg, #E8C96D, #D4AF37)',
-                WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
-              }}>
-              FITLOG
-            </Typography>
-          </Box>
+          <BrandMark size={28} variant="full" isDark={isDark} />
           <Box sx={{ display:'flex', gap:0.5 }}>
             <IconButton disableRipple size="small" onClick={toggleMode}
               sx={{ color: isDark ? '#808080' : '#555555' }}>
@@ -635,7 +630,10 @@ export default function Navbar() {
         maxWidth: isMobile ? '100%' : 'calc(100vw - 72px)',
         transition:'margin-left 0.25s cubic-bezier(0.4,0,0.2,1)',
       }}>
-        <Outlet />
+        {/* pathname이 바뀔 때마다 re-mount → pageEnter 애니메이션 실행 */}
+        <Box key={location.pathname} sx={{ animation: 'pageEnter 0.24s cubic-bezier(0.22,1,0.36,1) both' }}>
+          <Outlet />
+        </Box>
       </Box>
 
       {/* ── 미니 채팅 (PC 전용, 채팅 페이지 제외) ── */}

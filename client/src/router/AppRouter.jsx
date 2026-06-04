@@ -11,6 +11,7 @@ import Explore           from '../pages/Explore/Explore';
 import CreatePost        from '../pages/Post/CreatePost';
 import EditPost          from '../pages/Post/EditPost';
 import PostDetailPage    from '../pages/Post/PostDetailPage';
+import HashtagPage       from '../pages/Post/HashtagPage';
 import Profile           from '../pages/Profile/Profile';
 import EditProfile       from '../pages/Profile/EditProfile';
 import ChatPage          from '../pages/Chat/ChatPage';
@@ -18,7 +19,8 @@ import Search            from '../pages/Search/Search';
 import PeopleSuggestions from '../components/common/PeopleSuggestions';
 import Settings          from '../pages/Settings/Settings';
 import RankingPage       from '../pages/Ranking/RankingPage';
-import BattlePage        from '../components/layout/BattlePage'; // 배틀 페이지 임포트
+import BattlePage        from '../components/layout/BattlePage';
+import OutfitAIPage     from '../pages/AI/OutfitAIPage';
 import axiosInstance     from '../api/axiosInstance';
 
 const PrivateRoute = ({ children }) => {
@@ -79,6 +81,7 @@ const AppRouter = () => {
           <Route path="post/create"       element={<CreatePost />} />
           <Route path="post/edit/:id"     element={<EditPost />} />
           <Route path="post/:id"          element={<PostDetailPage />} />
+          <Route path="tag/:tag"          element={<HashtagPage />} />
           <Route path="profile/edit"      element={<EditProfile />} />
           <Route path="profile/:username" element={<Profile />} />
           <Route path="chat"              element={<ChatPage />} />
@@ -86,6 +89,7 @@ const AppRouter = () => {
           <Route path="settings"          element={<Settings />} />
           <Route path="ranking"           element={<RankingPage />} />
           <Route path="battle"            element={<BattlePage />} />
+          <Route path="outfit-ai"         element={<OutfitAIPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

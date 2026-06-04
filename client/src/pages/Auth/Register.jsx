@@ -193,6 +193,7 @@ export default function Register() {
       alignItems: 'center', justifyContent: 'center',
       backgroundColor: '#080808', p: 2,
       overflow: 'hidden', position: 'relative',
+      animation: 'pageEnter 0.28s cubic-bezier(0.22,1,0.36,1) both',
       '&::before': {
         content: '""', position: 'absolute',
         top: '-15%', left: '40%', width: 600, height: 600,

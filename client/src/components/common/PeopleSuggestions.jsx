@@ -107,10 +107,16 @@ const PeopleSuggestions = () => {
                 >
                   {u.username}
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                  {u.preferred_style ? `${getLabel(u.preferred_style)} 스타일 · ` : ''}
-                  팔로워 {u.follower_count}명
-                </Typography>
+                {u.is_following_me ? (
+                  <Typography variant="caption" sx={{ display: 'block', color: isDark ? '#888' : '#999', fontWeight: 500 }}>
+                    회원님을 팔로우하고 있습니다
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                    {u.preferred_style ? `${getLabel(u.preferred_style)} 스타일 · ` : ''}
+                    팔로워 {u.follower_count}명
+                  </Typography>
+                )}
               </Box>
 
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

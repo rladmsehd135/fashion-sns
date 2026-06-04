@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Typography, TextField, Button, Chip,
   IconButton, Select, MenuItem, FormControl,
-  InputLabel, CircularProgress, Alert,
+  InputLabel, CircularProgress, Alert, Dialog,
 } from '@mui/material';
-import { AddPhotoAlternate, Close } from '@mui/icons-material';
+import { AddPhotoAlternate, Close, PinDropRounded, CheckRounded } from '@mui/icons-material';
 import { createPost, getCategories } from '../../api/postApi';
 import axiosInstance from '../../api/axiosInstance';
 import UserTagInput from '../../components/common/UserTagInput';
@@ -24,6 +24,9 @@ const CreatePost = () => {
   const [stylesLoading, setStylesLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  // 핀 배치 모달 상태
+  const [pinModal, setPinModal] = useState(null); // { itemIndex, imageIndex }
+  const pinImgRef = useRef(null);
 
   useEffect(() => {
     setStylesLoading(true);
@@ -72,7 +75,19 @@ const CreatePost = () => {
     brand_name: '', item_name: '', category: categoryList[0]?.value || 'top',
     purchase_url: '', price: '', size_purchased: '',
     fit_review: 'true', rating: 5, review_text: '',
+    x_pct: null, y_pct: null, image_index: 0,
   }]);
+
+  const handlePinClick = (e) => {
+    if (!pinImgRef.current || !pinModal) return;
+    const rect = pinImgRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width * 100).toFixed(1);
+    const y = ((e.clientY - rect.top) / rect.height * 100).toFixed(1);
+    updateItem(pinModal.itemIndex, 'x_pct', x);
+    updateItem(pinModal.itemIndex, 'y_pct', y);
+    updateItem(pinModal.itemIndex, 'image_index', pinModal.imageIndex);
+    setPinModal(null);
+  };
   const updateItem = (i, key, val) => setItems(prev => prev.map((item, idx) => idx === i ? { ...item, [key]: val } : item));
   const removeItem = (i) => setItems(prev => prev.filter((_, idx) => idx !== i));
 
@@ -223,10 +238,90 @@ const CreatePost = () => {
                 </Box>
                 <TextField label="구매처 URL" size="small" value={item.purchase_url}
                   onChange={e => updateItem(i, 'purchase_url', e.target.value)} fullWidth />
+                {/* 핀 위치 지정 (이미지가 있을 때만) */}
+                {previews.length > 0 && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+                    <Button
+                      size="small"
+                      startIcon={<PinDropRounded sx={{ fontSize: 14 }} />}
+                      onClick={() => setPinModal({ itemIndex: i, imageIndex: item.image_index || 0 })}
+                      sx={{
+                        fontSize: 11, color: item.x_pct != null ? '#4CAF50' : '#E8C96D',
+                        borderColor: item.x_pct != null ? '#4CAF50' : '#E8C96D',
+                        border: '1px solid', borderRadius: 1.5, px: 1.2, py: 0.4,
+                      }}
+                    >
+                      {item.x_pct != null ? `위치 지정됨 (${item.x_pct}%, ${item.y_pct}%)` : '사진에서 위치 지정'}
+                    </Button>
+                    {item.x_pct != null && (
+                      <IconButton size="small" onClick={() => { updateItem(i, 'x_pct', null); updateItem(i, 'y_pct', null); }}
+                        sx={{ color: '#505050', width: 20, height: 20 }}>
+                        <Close sx={{ fontSize: 12 }} />
+                      </IconButton>
+                    )}
+                  </Box>
+                )}
               </Box>
             </Box>
           ))}
         </Box>
+
+        {/* 핀 배치 모달 */}
+        <Dialog open={Boolean(pinModal)} onClose={() => setPinModal(null)} maxWidth="sm" fullWidth
+          PaperProps={{ sx: { backgroundColor: '#0A0A0A', border: '1px solid #222', borderRadius: 2 } }}>
+          <Box sx={{ p: 2 }}>
+            <Typography fontWeight={700} fontSize={14} sx={{ color: '#EFEFEF', mb: 0.5 }}>
+              위치를 클릭해서 핀을 꽂아주세요
+            </Typography>
+            <Typography fontSize={11} sx={{ color: '#606060', mb: 1.5 }}>
+              사진 위를 클릭하면 해당 위치에 아이템 핀이 표시됩니다
+            </Typography>
+            {/* 이미지 선택 탭 */}
+            {previews.length > 1 && pinModal && (
+              <Box sx={{ display: 'flex', gap: 0.8, mb: 1.5, overflowX: 'auto' }}>
+                {previews.map((src, idx) => (
+                  <Box key={idx} onClick={() => setPinModal(p => ({ ...p, imageIndex: idx }))}
+                    sx={{
+                      width: 48, height: 48, borderRadius: 1, overflow: 'hidden', flexShrink: 0, cursor: 'pointer',
+                      border: `2px solid ${pinModal?.imageIndex === idx ? '#E8C96D' : '#2A2A2A'}`,
+                    }}>
+                    <Box component="img" src={src} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </Box>
+                ))}
+              </Box>
+            )}
+            {pinModal && previews[pinModal.imageIndex] && (
+              <Box
+                ref={pinImgRef}
+                onClick={handlePinClick}
+                sx={{ position: 'relative', cursor: 'crosshair', userSelect: 'none', borderRadius: 1, overflow: 'hidden' }}
+              >
+                <Box component="img"
+                  src={previews[pinModal.imageIndex]}
+                  sx={{ width: '100%', display: 'block', maxHeight: 400, objectFit: 'contain', backgroundColor: '#111' }}
+                  draggable={false}
+                />
+                {/* 기존 핀 미리보기 */}
+                {items.filter((it, idx) => idx !== pinModal.itemIndex && Number(it.image_index) === pinModal.imageIndex && it.x_pct != null)
+                  .map((it, idx) => (
+                    <Box key={idx} sx={{
+                      position: 'absolute', left: `${it.x_pct}%`, top: `${it.y_pct}%`,
+                      transform: 'translate(-50%,-50%)',
+                      width: 20, height: 20, borderRadius: '50%',
+                      backgroundColor: 'rgba(80,80,80,0.8)', border: '1.5px solid #888',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      pointerEvents: 'none',
+                    }}>
+                      <PinDropRounded sx={{ fontSize: 11, color: '#ccc' }} />
+                    </Box>
+                  ))
+                }
+              </Box>
+            )}
+            <Button onClick={() => setPinModal(null)} size="small"
+              sx={{ mt: 1.5, color: '#606060' }}>취소</Button>
+          </Box>
+        </Dialog>
 
         <Button type="submit" variant="contained" size="large" disabled={loading}
           sx={{

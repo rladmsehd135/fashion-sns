@@ -160,11 +160,18 @@ const RecommendedUsers = () => {
                     onClick={() => navigate(`/profile/${u.username}`)}>
                     {u.username}
                   </Typography>
-                  <Typography variant="caption" noWrap fontSize={11}
-                    sx={{ color: C.textSub }}>
-                    {u.preferred_style ? `${getLabel(u.preferred_style)} · ` : ''}
-                    팔로워 {u.follower_count}명
-                  </Typography>
+                  {u.is_following_me ? (
+                    <Typography variant="caption" noWrap fontSize={10.5}
+                      sx={{ color: isDark ? '#888' : '#999', fontWeight: 500 }}>
+                      회원님을 팔로우하고 있습니다
+                    </Typography>
+                  ) : (
+                    <Typography variant="caption" noWrap fontSize={11}
+                      sx={{ color: C.textSub }}>
+                      {u.preferred_style ? `${getLabel(u.preferred_style)} · ` : ''}
+                      팔로워 {u.follower_count}명
+                    </Typography>
+                  )}
                 </Box>
                 {!followed[u.id] ? (
                   <Typography variant="caption" fontWeight={700}

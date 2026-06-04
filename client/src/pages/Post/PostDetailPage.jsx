@@ -11,10 +11,16 @@ import {
   ChatBubbleOutlineRounded, BookmarkBorderRounded,
   BookmarkRounded, MoreHorizRounded,
   ArrowBackIosNewRounded, CloseRounded,
+  ShoppingBagRounded, OpenInNewRounded, RepeatRounded,
 } from '@mui/icons-material';
+import { Popover } from '@mui/material';
 import useThemeStore from '../../store/themeStore';
 import toast from 'react-hot-toast';
+import confirmToast from '../../utils/confirmToast';
 import useAuthStore from '../../store/authStore';
+import ReportDialog from '../../components/common/ReportDialog';
+import FitReview from '../../components/common/FitReview';
+import { reportPost } from '../../api/postApi';
 import axiosInstance from '../../api/axiosInstance';
 
 import { styleColors } from '../../constants/styleConstants';
@@ -48,6 +54,9 @@ export default function PostDetailPage() {
   const commentRef = useRef(null);
   const [submitting, setSubmitting] = useState(false);
   const [replyTo, setReplyTo] = useState(null); // { id, username }
+  const [pinAnchor,   setPinAnchor]   = useState(null); // { el, item }
+  const [reportOpen,  setReportOpen]  = useState(false);
+
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
 
@@ -109,14 +118,15 @@ export default function PostDetailPage() {
     navigate(`/post/edit/${id}`);
   };
 
-  const handleDeletePost = async () => {
+  const handleDeletePost = () => {
     handleMenuClose();
-    if (!window.confirm('게시물을 삭제할까요?')) return;
-    try {
-      await axiosInstance.delete(`/posts/${id}`);
-      toast.success('게시물이 삭제됐어요.');
-      navigate(-1);
-    } catch { toast.error('삭제에 실패했어요.'); }
+    confirmToast('게시물을 삭제할까요?', async () => {
+      try {
+        await axiosInstance.delete(`/posts/${id}`);
+        toast.success('게시물이 삭제됐어요.');
+        navigate(-1);
+      } catch { toast.error('삭제에 실패했어요.'); }
+    });
   };
 
   const handleFollowToggle = async () => {
@@ -130,8 +140,8 @@ export default function PostDetailPage() {
   };
 
   const handleReport = () => {
-    toast('신고가 접수됐어요.', { icon: '🚩' });
     handleMenuClose();
+    setReportOpen(true);
   };
 
   const handleComment = async (e) => {
@@ -174,6 +184,10 @@ export default function PostDetailPage() {
   }
 
   if (!post) return null;
+
+  const isRepost      = !!post.repost_origin_id;
+  const displayUser   = isRepost && post.origin_username   ? post.origin_username   : post.username;
+  const displayAvatar = isRepost && post.origin_profile_image ? post.origin_profile_image : post.profile_image;
 
   const images = (post.images || []).map(img =>
     typeof img === 'string' ? img : img.image_url
@@ -238,10 +252,81 @@ export default function PostDetailPage() {
         }}>
           {images.length > 0 ? (
             <>
+              <Box sx={{ position: 'relative', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Box component="img"
                 src={`http://localhost:5000${images[imgIndex]}`}
                 sx={{ width: '100%', height: '100%', objectFit: 'contain', maxHeight: isMobile ? 400 : '100%', display: 'block' }}
               />
+              {/* 아이템 핀 오버레이 */}
+              {(post.items || [])
+                .filter(item => Number(item.image_index) === imgIndex && item.x_pct != null && item.y_pct != null)
+                .map((item, idx) => (
+                  <Box
+                    key={idx}
+                    onClick={e => { e.stopPropagation(); setPinAnchor({ el: e.currentTarget, item }); }}
+                    sx={{
+                      position: 'absolute',
+                      left: `${item.x_pct}%`,
+                      top: `${item.y_pct}%`,
+                      transform: 'translate(-50%, -50%)',
+                      zIndex: 5,
+                      cursor: 'pointer',
+                      width: 32, height: 32,
+                      borderRadius: '50%',
+                      backgroundColor: 'rgba(10,10,10,0.75)',
+                      border: '2px solid rgba(255,255,255,0.9)',
+                      backdropFilter: 'blur(6px)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
+                      transition: 'transform 0.15s, background-color 0.15s',
+                      '&:hover': { transform: 'translate(-50%, -50%) scale(1.15)', backgroundColor: 'rgba(232,201,109,0.85)' },
+                    }}
+                  >
+                    <ShoppingBagRounded sx={{ fontSize: 15, color: '#fff' }} />
+                  </Box>
+                ))
+              }
+              {/* 핀 팝오버 */}
+              <Popover
+                open={Boolean(pinAnchor)}
+                anchorEl={pinAnchor?.el}
+                onClose={() => setPinAnchor(null)}
+                anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+                transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+                PaperProps={{ sx: { backgroundColor: '#111', border: '1px solid #222', borderRadius: 2, p: 1.5, maxWidth: 220, boxShadow: '0 8px 32px rgba(0,0,0,0.6)' } }}
+              >
+                {pinAnchor?.item && (
+                  <Box>
+                    {pinAnchor.item.brand_name && (
+                      <Typography fontSize={10} fontWeight={700} letterSpacing={1.5} sx={{ color: '#E8C96D', textTransform: 'uppercase', mb: 0.3 }}>
+                        {pinAnchor.item.brand_name}
+                      </Typography>
+                    )}
+                    <Typography fontSize={13} fontWeight={700} sx={{ color: '#EFEFEF', mb: 0.5 }}>
+                      {pinAnchor.item.item_name}
+                    </Typography>
+                    {pinAnchor.item.price && (
+                      <Typography fontSize={12} sx={{ color: '#A0A0A0', mb: 0.5 }}>
+                        {Number(pinAnchor.item.price).toLocaleString()}원
+                      </Typography>
+                    )}
+                    {pinAnchor.item.purchase_url && (
+                      <Box
+                        component="a"
+                        href={pinAnchor.item.purchase_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        sx={{ display: 'flex', alignItems: 'center', gap: 0.4, mt: 0.5, textDecoration: 'none' }}
+                      >
+                        <Typography fontSize={11} sx={{ color: '#4A90D9', fontWeight: 600 }}>구매하기</Typography>
+                        <OpenInNewRounded sx={{ fontSize: 11, color: '#4A90D9' }} />
+                      </Box>
+                    )}
+                  </Box>
+                )}
+              </Popover>
+              </Box>
               {images.length > 1 && (
                 <>
                   {imgIndex > 0 && (
@@ -263,8 +348,9 @@ export default function PostDetailPage() {
               )}
             </>
           ) : (
-            <Box sx={{ width: '100%', height: '100%', minHeight: 400, background: `linear-gradient(135deg, ${color}20, #0D0D0D)`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Typography sx={{ fontSize: 48, opacity: 0.3 }}>👕</Typography>
+            <Box sx={{ width: '100%', height: '100%', minHeight: 400, background: `linear-gradient(135deg, ${color}20, #0D0D0D)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+              <CheckroomRounded sx={{ fontSize: 56, color: color, opacity: 0.25 }} />
+              <Typography sx={{ fontSize: 10, fontWeight: 800, letterSpacing: 4, color: color, opacity: 0.2, textTransform: 'uppercase' }}>No Photo</Typography>
             </Box>
           )}
         </Box>
@@ -277,18 +363,42 @@ export default function PostDetailPage() {
           borderLeft: isMobile ? 'none' : '1px solid #141414',
           height: '100%',
         }}>
+          {/* 리포스트 배너 */}
+          {isRepost && (
+            <Box
+              onClick={() => navigate(`/profile/${post.username}`)}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 1,
+                px: 2, py: 0.9, cursor: 'pointer', flexShrink: 0,
+                background: 'linear-gradient(90deg, rgba(232,201,109,0.1) 0%, transparent 100%)',
+                borderBottom: '1px solid rgba(232,201,109,0.12)',
+                '&:hover': { background: 'rgba(232,201,109,0.12)' },
+              }}
+            >
+              <RepeatRounded sx={{ fontSize: 13, color: '#E8C96D' }} />
+              <Avatar
+                src={post.profile_image ? `http://localhost:5000${post.profile_image}` : null}
+                sx={{ width: 18, height: 18, bgcolor: '#1A1A1A', color: '#E8C96D', fontSize: 8, fontWeight: 800 }}
+              >
+                {post.username?.[0]?.toUpperCase()}
+              </Avatar>
+              <Typography fontSize={12} fontWeight={700} sx={{ color: '#E8C96D' }}>{post.username}</Typography>
+              <Typography fontSize={12} sx={{ color: '#505050' }}>님이 공유했어요</Typography>
+            </Box>
+          )}
+
           {/* 헤더 */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.5, borderBottom: '1px solid #141414', flexShrink: 0 }}>
             <Avatar
-              src={post.profile_image ? `http://localhost:5000${post.profile_image}` : null}
+              src={displayAvatar ? `http://localhost:5000${displayAvatar}` : null}
               sx={{ width: 36, height: 36, cursor: 'pointer', bgcolor: '#1A1A1A', color: '#E8C96D', fontWeight: 800, fontSize: 14, border: '1.5px solid #1E1E1E' }}
-              onClick={() => navigate(`/profile/${post.username}`)}
+              onClick={() => navigate(`/profile/${displayUser}`)}
             >
-              {post.username?.[0]?.toUpperCase()}
+              {displayUser?.[0]?.toUpperCase()}
             </Avatar>
             <Box sx={{ flex: 1 }}>
-              <Typography fontSize={13} fontWeight={600} sx={{ cursor: 'pointer', '&:hover': { color: '#E8C96D' } }} onClick={() => navigate(`/profile/${post.username}`)}>
-                {post.username}
+              <Typography fontSize={13} fontWeight={600} sx={{ cursor: 'pointer', '&:hover': { color: '#E8C96D' } }} onClick={() => navigate(`/profile/${displayUser}`)}>
+                {displayUser}
               </Typography>
               <Box onClick={() => navigate(`/explore?style=${post.style}`)} sx={{ display: 'inline-flex', alignItems: 'center', px: 1, py: '1px', borderRadius: 4, mt: 0.2, cursor: 'pointer', backgroundColor: `${color}15`, border: `1px solid ${color}40`, transition: 'all 0.15s', '&:hover': { backgroundColor: `${color}28`, borderColor: `${color}70` } }}>
                 <Typography sx={{ fontSize: 9, fontWeight: 700, color: color, letterSpacing: 0.5 }}>{post.style?.toUpperCase()}</Typography>
@@ -334,22 +444,26 @@ export default function PostDetailPage() {
             {/* 본문 */}
             <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid #0F0F0F' }}>
               <Box sx={{ display: 'flex', gap: 1.5 }}>
-                <Avatar src={post.profile_image ? `http://localhost:5000${post.profile_image}` : null} sx={{ width: 30, height: 30, flexShrink: 0, bgcolor: '#1A1A1A', color: '#E8C96D', fontWeight: 800, fontSize: 12, mt: 0.2 }}>{post.username?.[0]?.toUpperCase()}</Avatar>
+                <Avatar src={displayAvatar ? `http://localhost:5000${displayAvatar}` : null} sx={{ width: 30, height: 30, flexShrink: 0, bgcolor: '#1A1A1A', color: '#E8C96D', fontWeight: 800, fontSize: 12, mt: 0.2 }}>{displayUser?.[0]?.toUpperCase()}</Avatar>
                 <Box>
                   {post.title && <Typography fontSize={14} fontWeight={700} mb={0.5} sx={{ color: '#EFEFEF' }}>{post.title}</Typography>}
                   <Typography fontSize={13} sx={{ color: '#C0C0C0', lineHeight: 1.6 }}>
-                    <Typography component="span" fontWeight={700} sx={{ color: '#EFEFEF', mr: 0.8, fontSize: 13 }}>{post.username}</Typography>
+                    <Typography component="span" fontWeight={700} sx={{ color: '#EFEFEF', mr: 0.8, fontSize: 13 }}>{displayUser}</Typography>
                     {post.content}
                   </Typography>
                   {tags.length > 0 && (
                     <Box sx={{ mt: 1, display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {tags.map(tag => <Typography key={tag} fontSize={12} onClick={() => navigate(`/search?q=${encodeURIComponent('#' + tag.trim())}`)} sx={{ color: '#4A90D9', cursor: 'pointer', '&:hover': { color: '#6FB3F5' } }}>#{tag.trim()}</Typography>)}
+                      {tags.map(tag => <Typography key={tag} fontSize={12} onClick={() => navigate(`/tag/${encodeURIComponent(tag.trim())}`)} sx={{ color: '#4A90D9', cursor: 'pointer', '&:hover': { color: '#6FB3F5' }, fontWeight: 600 }}>#{tag.trim()}</Typography>)}
                     </Box>
                   )}
                   <Typography sx={{ fontSize: 11, color: '#3A3A3A', mt: 0.5 }}>{timeAgo(post.created_at)}</Typography>
                 </Box>
               </Box>
             </Box>
+            {/* 체형별 핏 리뷰 */}
+            {post.items?.length > 0 && (
+              <FitReview items={post.items} isDark={isDark} />
+            )}
 
             {/* 댓글 목록 */}
             {comments.filter(c => !c.parent_id).map(c => (
@@ -400,6 +514,11 @@ export default function PostDetailPage() {
           </Box>
         </Box>
       </Box>
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        onSubmit={reason => reportPost(id, reason)}
+      />
     </Dialog>
   );
 }

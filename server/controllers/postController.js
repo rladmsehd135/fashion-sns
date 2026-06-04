@@ -37,8 +37,9 @@ const PostController = {
           await db.query(
             `INSERT INTO post_items
              (post_id, brand_name, item_name, category, purchase_url,
-              price, currency, size_purchased, fit_review, rating, review_text)
-             VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11)`,
+              price, currency, size_purchased, fit_review, rating, review_text,
+              x_pct, y_pct, image_index)
+             VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14)`,
             [
               postId,
               item.brand_name    || null,
@@ -51,6 +52,9 @@ const PostController = {
               item.fit_review    || null,
               item.rating        || null,
               item.review_text   || null,
+              item.x_pct != null ? Number(item.x_pct) : null,
+              item.y_pct != null ? Number(item.y_pct) : null,
+              item.image_index   != null ? Number(item.image_index) : 0,
             ]
           );
         }
@@ -123,6 +127,7 @@ const PostController = {
                   ou.username AS origin_username, ou.profile_image AS origin_profile_image,
                   (SELECT COUNT(*) FROM likes     WHERE post_id = p.id AND user_id = :1) AS is_liked,
                   (SELECT COUNT(*) FROM bookmarks WHERE post_id = p.id AND user_id = :2) AS is_bookmarked,
+                  (SELECT COUNT(*) FROM posts rp WHERE rp.user_id = :3 AND rp.repost_origin_id = p.id AND rp.is_deleted = 0) AS is_reposted,
                   (SELECT image_url FROM post_images WHERE post_id = p.id AND sort_order = 0
                    FETCH FIRST 1 ROWS ONLY) AS thumbnail,
                   (SELECT LISTAGG(image_url, ',') WITHIN GROUP (ORDER BY sort_order)
@@ -131,14 +136,14 @@ const PostController = {
                    FROM post_tags pt JOIN users u2 ON u2.id = pt.user_id
                    WHERE pt.post_id = p.id) AS tagged_usernames,
                   ROW_NUMBER() OVER (ORDER BY p.created_at DESC) AS rn
-           FROM posts p 
+           FROM posts p
            JOIN users u ON u.id = p.user_id
            LEFT JOIN posts op ON op.id = p.repost_origin_id
            LEFT JOIN users ou ON ou.id = op.user_id
-           WHERE p.user_id IN (SELECT following_id FROM follows WHERE follower_id = :3)
+           WHERE p.user_id IN (SELECT following_id FROM follows WHERE follower_id = :4)
            AND p.is_deleted = 0
-         ) WHERE rn BETWEEN :4 AND :5`,
-        [req.userId, req.userId, req.userId, offset + 1, offset + limit]
+         ) WHERE rn BETWEEN :5 AND :6`,
+        [req.userId, req.userId, req.userId, req.userId, offset + 1, offset + limit]
       );
       res.json(result.rows);
     } catch (err) { next(err); }
@@ -277,11 +282,14 @@ const PostController = {
       if (parsedItems.length > 0) {
         for (const item of parsedItems) {
           await db.query(
-            `INSERT INTO post_items (post_id, brand_name, item_name, category, purchase_url, price, currency, size_purchased, fit_review, rating, review_text)
-             VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11)`,
+            `INSERT INTO post_items (post_id, brand_name, item_name, category, purchase_url, price, currency, size_purchased, fit_review, rating, review_text, x_pct, y_pct, image_index)
+             VALUES (:1, :2, :3, :4, :5, :6, :7, :8, :9, :10, :11, :12, :13, :14)`,
             [id, item.brand_name || null, item.item_name, item.category, item.purchase_url || null,
              item.price || null, item.currency || 'KRW', item.size_purchased || null,
-             item.fit_review || null, item.rating || null, item.review_text || null]
+             item.fit_review || null, item.rating || null, item.review_text || null,
+             item.x_pct != null ? Number(item.x_pct) : null,
+             item.y_pct != null ? Number(item.y_pct) : null,
+             item.image_index != null ? Number(item.image_index) : 0]
           );
         }
       }
@@ -298,6 +306,52 @@ const PostController = {
       await db.query(`UPDATE posts SET is_deleted = 1 WHERE id = :1`, [id]);
       res.json({ message: '게시물이 삭제되었습니다.' });
     } catch (err) { next(err); }
+  },
+
+  reportPost: async (req, res, next) => {
+    try {
+      const postId = parseInt(req.params.id);
+      const { reason } = req.body;
+      if (!reason?.trim()) return res.status(400).json({ message: '신고 사유를 입력해주세요.' });
+
+      const post = await db.query(`SELECT id FROM posts WHERE id = :1 AND is_deleted = 0`, [postId]);
+      if (!post.rows[0]) return res.status(404).json({ message: '게시물을 찾을 수 없습니다.' });
+
+      // 중복 신고 방지
+      const dup = await db.query(
+        `SELECT id FROM post_reports WHERE reporter_id = :1 AND post_id = :2`,
+        [req.userId, postId]
+      ).catch(() => ({ rows: [] }));
+      if (dup.rows.length > 0) return res.status(409).json({ message: '이미 신고한 게시물이에요.' });
+
+      await db.query(
+        `INSERT INTO post_reports (reporter_id, post_id, reason) VALUES (:1, :2, :3)`,
+        [req.userId, postId, reason.trim().slice(0, 200)]
+      );
+      res.json({ message: '신고가 접수됐어요. 검토 후 조치하겠습니다.' });
+    } catch (err) {
+      // 테이블 없으면 자동 생성 후 재시도
+      if (err.message?.includes('ORA-00942')) {
+        try {
+          await db.query(
+            `CREATE TABLE post_reports (
+               id          NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+               reporter_id NUMBER NOT NULL REFERENCES users(id),
+               post_id     NUMBER NOT NULL REFERENCES posts(id),
+               reason      VARCHAR2(200),
+               created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+               CONSTRAINT uq_post_report UNIQUE (reporter_id, post_id)
+             )`
+          );
+          await db.query(
+            `INSERT INTO post_reports (reporter_id, post_id, reason) VALUES (:1, :2, :3)`,
+            [req.userId, parseInt(req.params.id), req.body.reason?.trim().slice(0, 200)]
+          );
+          return res.json({ message: '신고가 접수됐어요. 검토 후 조치하겠습니다.' });
+        } catch (e2) { return next(e2); }
+      }
+      next(err);
+    }
   },
 
   toggleLike: async (req, res, next) => {
@@ -376,6 +430,57 @@ const PostController = {
     } catch (err) { next(err); }
   },
 
+  unrepost: async (req, res, next) => {
+    try {
+      const origId = parseInt(req.params.id);
+      const found = await db.query(
+        `SELECT id FROM posts WHERE user_id = :1 AND repost_origin_id = :2 AND is_deleted = 0`,
+        [req.userId, origId]
+      );
+      if (!found.rows[0]) return res.status(404).json({ message: '리포스트를 찾을 수 없습니다.' });
+
+      await db.query(`UPDATE posts SET is_deleted = 1 WHERE id = :1`, [found.rows[0].id]);
+      await db.query(
+        `UPDATE posts SET repost_count = GREATEST(NVL(repost_count, 0) - 1, 0) WHERE id = :1`, [origId]
+      ).catch(() => {});
+
+      res.json({ message: '리포스트가 취소됐어요.' });
+    } catch (err) { next(err); }
+  },
+
+  // 해시태그로 게시물 검색
+  getByTag: async (req, res, next) => {
+    try {
+      const tag = decodeURIComponent(req.params.tag).replace(/^#/, '').trim();
+      const page   = parseInt(req.query.page)  || 1;
+      const limit  = parseInt(req.query.limit) || 12;
+      const offset = (page - 1) * limit;
+
+      const result = await db.query(
+        `SELECT * FROM (
+           SELECT p.id, p.user_id, p.title, p.content, p.style, p.tags,
+                  p.likes_count, p.comments_count, p.created_at,
+                  u.username, u.profile_image,
+                  (SELECT rank FROM (SELECT id, RANK() OVER (ORDER BY total_wins DESC) as rank FROM users WHERE total_wins > 0) WHERE id = u.id) as win_rank,
+                  (SELECT image_url FROM post_images WHERE post_id = p.id AND sort_order = 0
+                   FETCH FIRST 1 ROWS ONLY) AS thumbnail,
+                  (SELECT LISTAGG(image_url, ',') WITHIN GROUP (ORDER BY sort_order)
+                   FROM post_images WHERE post_id = p.id) AS image_urls,
+                  ROW_NUMBER() OVER (ORDER BY p.created_at DESC) AS rn
+           FROM posts p
+           JOIN users u ON u.id = p.user_id
+           WHERE p.is_deleted = 0
+             AND (
+               LOWER(p.tags) LIKE '%"#' || LOWER(:1) || '"%'
+               OR LOWER(p.tags) LIKE '%"' || LOWER(:2) || '"%'
+             )
+         ) WHERE rn BETWEEN :3 AND :4`,
+        [tag, tag, offset + 1, offset + limit]
+      );
+      res.json(result.rows);
+    } catch (err) { next(err); }
+  },
+
   // 스타일 배틀을 위한 랜덤 포스트 2개 가져오기
   getBattleMatch: async (req, res, next) => {
     try {
@@ -402,19 +507,26 @@ const PostController = {
     } catch (err) { next(err); }
   },
 
-  // 배틀 우승자 (상위 랭킹) 가져오기
+  // 배틀 우승자 — 유저별 total_wins 기준 상위 5명
   getBattleWinners: async (req, res, next) => {
     try {
       const result = await db.query(
-        `SELECT p.id, p.win_count, u.username, u.profile_image,
-                (SELECT image_url FROM post_images WHERE post_id = p.id AND sort_order = 0 FETCH FIRST 1 ROWS ONLY) AS thumbnail
-         FROM posts p
-         JOIN users u ON u.id = p.user_id
-         WHERE p.win_count > 0 AND p.is_deleted = 0
-         ORDER BY p.win_count DESC
+        `SELECT u.id, u.username, u.profile_image, u.total_wins,
+                (SELECT image_url
+                 FROM post_images pi
+                 WHERE pi.post_id = (
+                   SELECT id FROM posts
+                   WHERE user_id = u.id AND is_deleted = 0
+                   ORDER BY win_count DESC
+                   FETCH FIRST 1 ROWS ONLY
+                 )
+                 AND pi.sort_order = 0
+                 FETCH FIRST 1 ROWS ONLY) AS thumbnail
+         FROM users u
+         WHERE u.total_wins > 0 AND u.is_active = 1
+         ORDER BY u.total_wins DESC
          FETCH FIRST 5 ROWS ONLY`
       );
-
       res.json(result.rows);
     } catch (err) { next(err); }
   },

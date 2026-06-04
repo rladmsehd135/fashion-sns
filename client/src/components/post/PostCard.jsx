@@ -1,15 +1,18 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Typography, Avatar, IconButton, Menu, MenuItem, Divider } from '@mui/material';
+import { Box, Typography, Avatar, IconButton, Menu, MenuItem, Divider, Dialog, DialogContent } from '@mui/material';
 import {
   FavoriteRounded, FavoriteBorderRounded,
   BookmarkRounded, BookmarkBorderRounded,
   ChatBubbleOutlineRounded, MoreHorizRounded,
   CheckroomRounded, RepeatRounded, LinkRounded,
-  AutoStoriesRounded, EmojiEventsRounded
+  AutoStoriesRounded,
 } from '@mui/icons-material';
+import RankBadge from '../common/RankBadge';
 import toast from 'react-hot-toast';
-import { toggleLike, toggleBookmark, repostPost } from '../../api/postApi';
+import confirmToast from '../../utils/confirmToast';
+import { toggleLike, toggleBookmark, repostPost, unrepostPost, reportPost } from '../../api/postApi';
+import ReportDialog from '../common/ReportDialog';
 import { timeAgo } from '../../utils/formatDate';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
@@ -27,24 +30,35 @@ const PostCard = ({ post: initialPost, compact = false }) => {
   const [menuAnchor, setMenuAnchor] = useState(null);
   const [shareAnchor, setShareAnchor] = useState(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [isReposted,    setIsReposted]    = useState(() => Number(initialPost?.is_reposted) > 0);
+  const [repostDialog,  setRepostDialog]  = useState(false);
+  const [reportOpen,    setReportOpen]    = useState(false);
+  const [likeAnimating, setLikeAnimating] = useState(false);
+  const [imgLoaded,     setImgLoaded]     = useState(false);
+  const [heartBurst,    setHeartBurst]    = useState(false);
+  const clickTimerRef = useRef(null);
+
+  // Props로 받은 데이터가 변경되면 내부 상태도 동기화 (실시간 반영 해결)
+  useEffect(() => {
+    setPost(initialPost);
+  }, [initialPost]);
 
   const C = {
-    bg: isDark ? '#111111' : '#FFFFFF',
-    border: isDark ? '#1E1E1E' : '#EBEBEB',
-    avatarBg: isDark ? '#1A1A1A' : '#F0F0F0',
-    iconColor: isDark ? '#505050' : '#AAAAAA',
-    textMain: isDark ? '#E0E0E0' : '#111111',
-    textSub: isDark ? '#606060' : '#666666',
-    textUser: isDark ? '#A0A0A0' : '#444444',
-    textTime: isDark ? '#404040' : '#AAAAAA',
-    dot: isDark ? '#2A2A2A' : '#DDDDDD',
-    likeCount: isDark ? '#C0C0C0' : '#262626',
-    tagColor: '#E8C96D',
-    menuBg: isDark ? '#1A1A1A' : '#FFFFFF',
-    menuBorder: isDark ? '#2A2A2A' : '#EBEBEB',
-    menuText: isDark ? '#EFEFEF' : '#0A0A0A',
-    menuHover: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
-    repostBg: isDark ? 'rgba(232,201,109,0.02)' : 'rgba(232,201,109,0.03)',
+    bg:         isDark ? '#000000' : '#FFFFFF',
+    border:     isDark ? '#262626' : '#EFEFEF',
+    avatarBg:   isDark ? '#262626' : '#EFEFEF',
+    iconColor:  '#8E8E8E',
+    textMain:   isDark ? '#F5F5F5' : '#000000',
+    textSub:    isDark ? '#A8A8A8' : '#737373',
+    textUser:   isDark ? '#F5F5F5' : '#000000',
+    textTime:   isDark ? '#737373' : '#8E8E8E',
+    dot:        '#8E8E8E',
+    likeCount:  isDark ? '#F5F5F5' : '#000000',
+    tagColor:   '#0095F6',
+    menuBg:     isDark ? '#262626' : '#FFFFFF',
+    menuBorder: isDark ? '#363636' : '#DBDBDB',
+    menuText:   isDark ? '#F5F5F5' : '#000000',
+    menuHover:  isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
   };
 
   if (!post) return null;
@@ -66,12 +80,45 @@ const PostCard = ({ post: initialPost, compact = false }) => {
     e.stopPropagation();
     try {
       const res = await toggleLike(post.id);
+      if (res.data.liked) {
+        setLikeAnimating(true);
+        setTimeout(() => setLikeAnimating(false), 400);
+      }
       setPost(prev => ({
         ...prev,
         is_liked: res.data.liked ? 1 : 0,
         likes_count: res.data.liked ? prev.likes_count + 1 : prev.likes_count - 1,
       }));
     } catch { toast.error('잠시 후 다시 시도해주세요.'); }
+  };
+
+  const handleImageDoubleTap = async () => {
+    setHeartBurst(true);
+    setTimeout(() => setHeartBurst(false), 750);
+    if (!post.is_liked) {
+      try {
+        const res = await toggleLike(post.id);
+        if (res.data.liked) {
+          setLikeAnimating(true);
+          setTimeout(() => setLikeAnimating(false), 400);
+          setPost(prev => ({ ...prev, is_liked: 1, likes_count: prev.likes_count + 1 }));
+        }
+      } catch {}
+    }
+  };
+
+  const handleImageClick = (e) => {
+    e.stopPropagation();
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+      handleImageDoubleTap();
+    } else {
+      clickTimerRef.current = setTimeout(() => {
+        clickTimerRef.current = null;
+        navigate(`/post/${post.id}`);
+      }, 230);
+    }
   };
 
   const handleBookmark = async (e) => {
@@ -95,16 +142,38 @@ const PostCard = ({ post: initialPost, compact = false }) => {
     setMenuAnchor(null);
   };
 
-  const handleRepost = async (e) => {
+  const handleRepostOpen = (e) => {
     e.stopPropagation();
     setShareAnchor(null);
+    setRepostDialog(true);
+  };
+
+  const handleRepostConfirm = async () => {
+    setRepostDialog(false);
     try {
       await repostPost(post.id);
+      setIsReposted(true);
       setPost(prev => ({ ...prev, repost_count: (Number(prev.repost_count) || 0) + 1 }));
-      toast.success('내 피드에 리포스트했어요!');
+      toast.success('내 피드에 공유했어요!');
     } catch (err) {
-      const msg = err.response?.data?.message || '리포스트에 실패했어요.';
-      toast.error(msg);
+      if (err.response?.status === 409) {
+        setIsReposted(true);
+        toast.error('이미 공유한 게시물이에요.');
+      } else {
+        toast.error(err.response?.data?.message || '공유에 실패했어요.');
+      }
+    }
+  };
+
+  const handleUnrepost = async () => {
+    setRepostDialog(false);
+    try {
+      await unrepostPost(post.id);
+      setIsReposted(false);
+      setPost(prev => ({ ...prev, repost_count: Math.max((Number(prev.repost_count) || 0) - 1, 0) }));
+      toast.success('공유를 취소했어요.');
+    } catch {
+      toast.error('취소에 실패했어요.');
     }
   };
   const handleMenuClose = () => setMenuAnchor(null);
@@ -116,14 +185,15 @@ const PostCard = ({ post: initialPost, compact = false }) => {
     navigate(`/post/edit/${post.id}`);
   };
 
-  const handleDelete = async () => {
+  const handleDelete = () => {
     handleMenuClose();
-    if (!window.confirm('게시물을 삭제할까요?')) return;
-    try {
-      await axiosInstance.delete(`/posts/${post.id}`);
-      toast.success('게시물이 삭제됐어요.');
-      setDeleted(true);
-    } catch { toast.error('삭제에 실패했어요.'); }
+    confirmToast('게시물을 삭제할까요?', async () => {
+      try {
+        await axiosInstance.delete(`/posts/${post.id}`);
+        toast.success('게시물이 삭제됐어요.');
+        setDeleted(true);
+      } catch { toast.error('삭제에 실패했어요.'); }
+    });
   };
 
   const handleFollow = async () => {
@@ -136,8 +206,8 @@ const PostCard = ({ post: initialPost, compact = false }) => {
   };
 
   const handleReport = () => {
-    toast('신고가 접수됐어요.', { icon: '🚩', style: { background: isDark ? '#0F0F0F' : '#fff', color: isDark ? '#F0F0F0' : '#0A0A0A', fontSize: '13px' } });
     handleMenuClose();
+    setReportOpen(true);
   };
 
   const handleGoToPost = () => { navigate(`/post/${post.id}`); handleMenuClose(); };
@@ -215,6 +285,7 @@ const PostCard = ({ post: initialPost, compact = false }) => {
             <Typography fontWeight={700} color="#fff" fontSize={13}>{post.comments_count}</Typography>
           </Box>
         </Box>
+        {/* 다중 이미지 표시 */}
         {imageList.length > 1 && (
           <Box sx={{
             position: 'absolute', top: 8, right: 8,
@@ -222,6 +293,22 @@ const PostCard = ({ post: initialPost, compact = false }) => {
             borderRadius: 1, px: 0.8, py: 0.3,
           }}>
             <Typography fontSize={10} color="#fff" fontWeight={700}>1/{imageList.length}</Typography>
+          </Box>
+        )}
+        {/* 리포스트 뱃지 — 좌상단 */}
+        {isRepost && (
+          <Box sx={{
+            position: 'absolute', top: 7, left: 7,
+            display: 'flex', alignItems: 'center', gap: 0.4,
+            backgroundColor: 'rgba(10,10,10,0.72)',
+            backdropFilter: 'blur(6px)',
+            border: '1px solid rgba(232,201,109,0.55)',
+            borderRadius: 10, px: 0.8, py: 0.3,
+          }}>
+            <RepeatRounded sx={{ fontSize: 11, color: '#E8C96D' }} />
+            <Typography fontSize={9} fontWeight={800} sx={{ color: '#E8C96D', letterSpacing: 0.3 }}>
+              공유됨
+            </Typography>
           </Box>
         )}
       </Box>
@@ -236,73 +323,73 @@ const PostCard = ({ post: initialPost, compact = false }) => {
       backgroundColor: C.bg,
       borderBottom: `1px solid ${C.border}`,
       pb: 0.5,
-      boxShadow: isDark ? 'none' : '0 0 0 1px rgba(0,0,0,0.05)',
+      transition: 'background-color 0.15s',
     }}>
 
-      {/* 리포스트 상단 라벨 */}
+      {/* 리포스트 상단 배너 */}
       {isRepost && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.8, px: 2.5, pt: 1.5, pb: 0 }}>
-          <RepeatRounded sx={{ fontSize: 16, color: C.textSub }} />
-          <Typography fontSize={12} fontWeight={700} sx={{ color: C.textSub }}>
-            {post.username}님이 리포스트했습니다
+        <Box
+          onClick={() => navigate(`/profile/${post.username}`)}
+          sx={{
+            display: 'flex', alignItems: 'center', gap: 0.8,
+            px: 2, py: 0.7,
+            borderBottom: `1px solid ${C.border}`,
+            cursor: 'pointer',
+            '&:hover': { backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' },
+          }}
+        >
+          <RepeatRounded sx={{ fontSize: 13, color: C.iconColor, flexShrink: 0 }} />
+          <Typography fontSize={12} sx={{ color: C.textSub }}>
+            <Typography component="span" fontSize={12} fontWeight={700} sx={{ color: C.textSub }}>
+              {post.username}
+            </Typography>
+            님이 공유했어요
           </Typography>
         </Box>
       )}
 
       {/* 헤더 */}
-      <Box sx={{ 
-        display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.5,
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 1.5, px: 2, py: 1.2,
         position: 'relative',
-        backgroundColor: isRepost ? C.repostBg : 'transparent',
       }}>
-        {isRepost && <Box sx={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, bgcolor: '#E8C96D' }} />}
         <Avatar
           src={displayImage ? `http://localhost:5000${displayImage}` : null}
           sx={{
-            width: 36, height: 36, cursor: 'pointer',
+            width: 38, height: 38, cursor: 'pointer',
             bgcolor: C.avatarBg, color: '#E8C96D',
             fontWeight: 800, fontSize: 14,
-            border: `1.5px solid ${C.border}`,
+            border: `1.5px solid ${isDark ? '#242424' : '#E8E8E8'}`,
+            transition: 'transform 0.18s cubic-bezier(0.22,1,0.36,1)',
+            '&:hover': { transform: 'scale(1.06)' },
           }}
           onClick={() => navigate(`/profile/${displayUser}`)}>
           {displayUser?.[0]?.toUpperCase()}
         </Avatar>
 
         <Box sx={{ flex: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
-              <Typography fontSize={13} fontWeight={800}
-              sx={{ cursor: 'pointer', color: C.textMain, '&:hover': { color: '#E8C96D' }, transition: 'color 0.15s', letterSpacing: '-0.01em' }}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.6 }}>
+            <Typography fontSize={14} fontWeight={700}
+              sx={{ cursor: 'pointer', color: C.textMain, '&:hover': { opacity: 0.7 }, transition: 'opacity 0.15s' }}
               onClick={() => navigate(`/profile/${displayUser}`)}>
               {displayUser}
-              </Typography>
-              {/* 작성자가 1,2,3등인 경우 뱃지 표시 (post 데이터에 담겨있다고 가정) */}
-              {post.win_rank >= 1 && post.win_rank <= 3 && (
-                <EmojiEventsRounded sx={{ 
-                  fontSize: 14, 
-                  color: post.win_rank === 1 ? '#FFD700' : post.win_rank === 2 ? '#C0C0C0' : '#CD7F32' 
-                }} />
-              )}
-            </Box>
-            <Box sx={{ width: 2, height: 2, borderRadius: '50%', backgroundColor: C.dot }} />
-            <Typography variant="caption" sx={{ color: C.textTime }}>
-              {timeAgo(post.created_at)}
             </Typography>
+            <RankBadge rank={post.win_rank} wins={post.total_wins} size="inline" />
           </Box>
-          {/* 스타일 뱃지 — 클릭 시 해당 스타일 탐색 */}
+          {/* 스타일 뱃지 */}
           {post.style && (
             <Box
               onClick={(e) => { e.stopPropagation(); navigate(`/explore?style=${post.style}`); }}
               sx={{
                 display: 'inline-flex', alignItems: 'center',
-                px: 0.8, py: '1px', borderRadius: 4, mt: 0.2,
+                px: 0.9, py: '1px', borderRadius: 3, mt: 0.3,
                 cursor: 'pointer',
-                backgroundColor: `${styleColor}15`,
-                border: `1px solid ${styleColor}40`,
-                transition: 'all 0.15s',
-                '&:hover': { backgroundColor: `${styleColor}25`, borderColor: `${styleColor}70` },
+                backgroundColor: `${styleColor}18`,
+                border: `1px solid ${styleColor}45`,
+                transition: 'opacity 0.15s',
+                '&:hover': { opacity: 0.7 },
               }}>
-              <Typography sx={{ fontSize: 9, fontWeight: 700, color: styleColor, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+              <Typography sx={{ fontSize: 9.5, fontWeight: 700, color: styleColor, letterSpacing: 0.5, textTransform: 'uppercase' }}>
                 {post.style}
               </Typography>
             </Box>
@@ -379,16 +466,49 @@ const PostCard = ({ post: initialPost, compact = false }) => {
 
       {/* 이미지 캐러셀 */}
       {imageList.length > 0 && (
-        <Box sx={{ position: 'relative', overflow: 'hidden' }}>
+        <Box sx={{ 
+          position: 'relative', overflow: 'hidden',
+          backgroundColor: isDark ? '#121212' : '#F9F9F9', // 로딩 중 배경색
+          width: '100%',
+          aspectRatio: '4 / 5', // 세로가 약간 긴 표준 피드 비율 고정
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
           <Box component="img"
             src={`http://localhost:5000${imageList[imgIndex]}`}
-            onClick={() => navigate(`/post/${post.id}`)}
+            onClick={handleImageClick}
+            onLoad={() => setImgLoaded(true)}
             sx={{
-              width: '100%', maxHeight: 520,
+              width: '100%', height: '100%',
               objectFit: 'cover', display: 'block', cursor: 'pointer',
-              transition: 'transform 0.4s ease',
-              '&:hover': { transform: imageList.length === 1 ? 'scale(1.02)' : 'none' },
+              opacity: imgLoaded ? 1 : 0,
+              transition: 'opacity 0.3s ease, transform 0.4s cubic-bezier(0.22,1,0.36,1)',
+              '&:hover': { transform: imageList.length === 1 ? 'scale(1.015)' : 'none' },
+              userSelect: 'none',
             }} />
+
+          {/* 더블클릭 하트 애니메이션 */}
+          {heartBurst && (
+            <Box sx={{
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              pointerEvents: 'none', zIndex: 10,
+              '@keyframes heartBurst': {
+                '0%':   { transform: 'translate(-50%, -50%) scale(0) rotate(-10deg)', opacity: 0 },
+                '18%':  { transform: 'translate(-50%, -50%) scale(1.35) rotate(6deg)',  opacity: 1 },
+                '38%':  { transform: 'translate(-50%, -50%) scale(0.95) rotate(-3deg)', opacity: 1 },
+                '58%':  { transform: 'translate(-50%, -50%) scale(1.12) rotate(2deg)',  opacity: 1 },
+                '78%':  { transform: 'translate(-50%, -50%) scale(1.05)',               opacity: 0.85 },
+                '100%': { transform: 'translate(-50%, -50%) scale(1.4)',                opacity: 0 },
+              },
+              animation: 'heartBurst 0.72s cubic-bezier(0.22,1,0.36,1) forwards',
+            }}>
+              <FavoriteRounded sx={{
+                fontSize: 110,
+                color: 'rgba(255,255,255,0.96)',
+                filter: 'drop-shadow(0 4px 24px rgba(255,77,109,0.65)) drop-shadow(0 0 8px rgba(255,77,109,0.4))',
+              }} />
+            </Box>
+          )}
           {imgIndex > 0 && (
             <Box onClick={e => { e.stopPropagation(); setImgIndex(i => i - 1); }}
               sx={{
@@ -434,34 +554,51 @@ const PostCard = ({ post: initialPost, compact = false }) => {
       )}
 
       {/* 액션 버튼 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, pt: 1 }}
+      <Box sx={{ display: 'flex', alignItems: 'center', px: 1.5, pt: 0.8 }}
         onClick={e => e.stopPropagation()}>
+        {/* 좋아요 */}
         <IconButton disableRipple size="small" onClick={handleLike}
           sx={{
-            color: post.is_liked ? '#FF4D6D' : C.iconColor,
-            transition: 'transform 0.15s ease',
-            '&:active': { transform: 'scale(1.3)' }, p: 0.8,
+            color: post.is_liked ? '#ED4956' : C.iconColor,
+            p: 0.8,
+            animation: likeAnimating ? 'heartPop 0.38s cubic-bezier(0.22,1,0.36,1)' : 'none',
+            '&:hover': { color: '#ED4956' },
+            transition: 'color 0.15s',
           }}>
-          {post.is_liked ? <FavoriteRounded sx={{ fontSize: 24 }} /> : <FavoriteBorderRounded sx={{ fontSize: 24 }} />}
+          {post.is_liked
+            ? <FavoriteRounded  sx={{ fontSize: 24 }} />
+            : <FavoriteBorderRounded sx={{ fontSize: 24 }} />}
         </IconButton>
-        <IconButton disableRipple size="small" sx={{ color: C.iconColor, p: 0.8 }}
+
+        {/* 댓글 */}
+        <IconButton disableRipple size="small"
+          sx={{ color: C.iconColor, p: 0.8, '&:hover': { color: C.textMain }, transition: 'color 0.15s' }}
           onClick={() => navigate(`/post/${post.id}`)}>
           <ChatBubbleOutlineRounded sx={{ fontSize: 22 }} />
         </IconButton>
-        {/* 공유/리포스트 버튼 */}
+
+        {/* 공유 */}
         <IconButton disableRipple size="small" onClick={handleShareOpen}
-          sx={{ color: C.iconColor, p: 0.8 }}>
+          sx={{
+            color: isReposted ? C.textMain : C.iconColor, p: 0.8,
+            '&:hover': { color: C.textMain },
+            transition: 'color 0.15s',
+          }}>
           <RepeatRounded sx={{ fontSize: 22 }} />
         </IconButton>
-        {Number(post.repost_count) > 0 && (
-          <Typography fontSize={11} sx={{ color: C.iconColor, ml: -0.4, mr: 0.4 }}>
-            {post.repost_count}
-          </Typography>
-        )}
+
         <Box sx={{ flex: 1 }} />
+
+        {/* 북마크 */}
         <IconButton disableRipple size="small" onClick={handleBookmark}
-          sx={{ color: post.is_bookmarked ? '#E8C96D' : C.iconColor, p: 0.8 }}>
-          {post.is_bookmarked ? <BookmarkRounded sx={{ fontSize: 22 }} /> : <BookmarkBorderRounded sx={{ fontSize: 22 }} />}
+          sx={{
+            color: post.is_bookmarked ? C.textMain : C.iconColor, p: 0.8,
+            '&:hover': { color: C.textMain },
+            transition: 'color 0.15s',
+          }}>
+          {post.is_bookmarked
+            ? <BookmarkRounded  sx={{ fontSize: 23 }} />
+            : <BookmarkBorderRounded sx={{ fontSize: 23 }} />}
         </IconButton>
       </Box>
 
@@ -469,9 +606,9 @@ const PostCard = ({ post: initialPost, compact = false }) => {
       <Menu anchorEl={shareAnchor} open={Boolean(shareAnchor)} onClose={() => setShareAnchor(null)}
         onClick={e => e.stopPropagation()}
         PaperProps={{ sx: { bgcolor: isDark ? '#161616' : '#FFFFFF', border: `1px solid ${isDark ? '#2A2A2A' : '#EBEBEB'}`, borderRadius: 2, minWidth: 170 } }}>
-        <MenuItem onClick={handleRepost} sx={menuItemSx}>
-          <RepeatRounded sx={{ fontSize: 18, mr: 1.2, color: '#E8C96D' }} />
-          내 피드에 리포스트
+        <MenuItem onClick={handleRepostOpen} sx={menuItemSx}>
+          <RepeatRounded sx={{ fontSize: 18, mr: 1.2, color: isReposted ? '#4CAF50' : '#E8C96D' }} />
+          {isReposted ? '공유 취소하기' : '내 피드에 공유'}
         </MenuItem>
         <MenuItem onClick={handleCopyLink} sx={menuItemSx}>
           <LinkRounded sx={{ fontSize: 18, mr: 1.2 }} />
@@ -479,48 +616,167 @@ const PostCard = ({ post: initialPost, compact = false }) => {
         </MenuItem>
       </Menu>
 
-      {/* 좋아요 수 */}
-      {post.likes_count > 0 && (
-        <Typography fontSize={12} fontWeight={700} sx={{ px: 2, pb: 0.5, color: C.likeCount }}>
-          좋아요 {post.likes_count.toLocaleString()}개
-        </Typography>
+      {/* 리포스트 확인 다이얼로그 */}
+      <Dialog
+        open={repostDialog}
+        onClose={() => setRepostDialog(false)}
+        onClick={e => e.stopPropagation()}
+        PaperProps={{
+          sx: {
+            bgcolor: isDark ? '#111' : '#fff',
+            border: `1px solid ${isDark ? '#222' : '#EBEBEB'}`,
+            borderRadius: 3,
+            minWidth: 300,
+            maxWidth: 340,
+            overflow: 'hidden',
+          }
+        }}
+      >
+        <DialogContent sx={{ p: 0 }}>
+          {/* 썸네일 미리보기 */}
+          {post.thumbnail && (
+            <Box sx={{ position: 'relative', height: 140, overflow: 'hidden' }}>
+              <Box component="img"
+                src={`http://localhost:5000${post.thumbnail}`}
+                sx={{ width: '100%', height: '100%', objectFit: 'cover', filter: 'blur(1px) brightness(0.6)' }}
+              />
+              <Box sx={{
+                position: 'absolute', inset: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 0.5,
+              }}>
+                <RepeatRounded sx={{ fontSize: 32, color: isReposted ? '#4CAF50' : '#E8C96D' }} />
+                <Typography fontSize={12} fontWeight={700} sx={{ color: '#fff' }}>
+                  {isReposted ? '공유 취소' : '내 피드에 공유'}
+                </Typography>
+              </Box>
+            </Box>
+          )}
+          <Box sx={{ px: 2.5, pt: 2, pb: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+              <Avatar
+                src={post.profile_image ? `http://localhost:5000${(isRepost ? post.origin_profile_image : post.profile_image)}` : null}
+                sx={{ width: 32, height: 32, bgcolor: isDark ? '#1A1A1A' : '#F0F0F0', color: '#E8C96D', fontSize: 12, fontWeight: 800 }}
+              >
+                {displayUser?.[0]?.toUpperCase()}
+              </Avatar>
+              <Box>
+                <Typography fontSize={13} fontWeight={700} sx={{ color: isDark ? '#EFEFEF' : '#0A0A0A' }}>
+                  {displayUser}
+                </Typography>
+                {post.content && (
+                  <Typography fontSize={11} sx={{
+                    color: isDark ? '#606060' : '#888',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200,
+                  }}>
+                    {post.content}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
+
+            {isReposted ? (
+              <>
+                <Typography fontSize={13} sx={{ color: isDark ? '#A0A0A0' : '#555', mb: 2, lineHeight: 1.5 }}>
+                  이미 내 피드에 공유한 게시물이에요.<br />공유를 취소할까요?
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box onClick={() => setRepostDialog(false)}
+                    sx={{ flex: 1, py: 1.2, borderRadius: 2, textAlign: 'center', cursor: 'pointer', border: `1px solid ${isDark ? '#2A2A2A' : '#E0E0E0'}`, '&:hover': { bgcolor: isDark ? '#1A1A1A' : '#F5F5F5' } }}>
+                    <Typography fontSize={13} fontWeight={600} sx={{ color: isDark ? '#A0A0A0' : '#666' }}>취소</Typography>
+                  </Box>
+                  <Box onClick={handleUnrepost}
+                    sx={{ flex: 1, py: 1.2, borderRadius: 2, textAlign: 'center', cursor: 'pointer', bgcolor: '#FF4D6D', '&:hover': { bgcolor: '#E03355' } }}>
+                    <Typography fontSize={13} fontWeight={700} sx={{ color: '#fff' }}>공유 취소</Typography>
+                  </Box>
+                </Box>
+              </>
+            ) : (
+              <>
+                <Typography fontSize={13} sx={{ color: isDark ? '#A0A0A0' : '#555', mb: 2, lineHeight: 1.5 }}>
+                  이 게시물을 내 피드에 공유할까요?
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <Box onClick={() => setRepostDialog(false)}
+                    sx={{ flex: 1, py: 1.2, borderRadius: 2, textAlign: 'center', cursor: 'pointer', border: `1px solid ${isDark ? '#2A2A2A' : '#E0E0E0'}`, '&:hover': { bgcolor: isDark ? '#1A1A1A' : '#F5F5F5' } }}>
+                    <Typography fontSize={13} fontWeight={600} sx={{ color: isDark ? '#A0A0A0' : '#666' }}>취소</Typography>
+                  </Box>
+                  <Box onClick={handleRepostConfirm}
+                    sx={{ flex: 1, py: 1.2, borderRadius: 2, textAlign: 'center', cursor: 'pointer', background: 'linear-gradient(135deg, #E8C96D, #D4AF37)', '&:hover': { opacity: 0.9 } }}>
+                    <Typography fontSize={13} fontWeight={700} sx={{ color: '#0A0A0A' }}>공유하기</Typography>
+                  </Box>
+                </Box>
+              </>
+            )}
+          </Box>
+          <Box sx={{ height: 12 }} />
+        </DialogContent>
+      </Dialog>
+
+      {/* 좋아요 수 + 댓글 수 */}
+      {(post.likes_count > 0 || post.comments_count > 0) && (
+        <Box sx={{ display:'flex', alignItems:'center', gap:1.5, px:2, pb:0.5 }}>
+          {post.likes_count > 0 && (
+            <Typography fontSize={13} fontWeight={700} sx={{ color: C.textMain }}>
+              좋아요 {Number(post.likes_count).toLocaleString()}개
+            </Typography>
+          )}
+          {post.comments_count > 0 && (
+            <Typography
+              fontSize={13} fontWeight={400}
+              sx={{ color: C.textSub, cursor: 'pointer', '&:hover': { color: C.textMain } }}
+              onClick={() => navigate(`/post/${post.id}`)}>
+              댓글 {Number(post.comments_count).toLocaleString()}개 모두 보기
+            </Typography>
+          )}
+        </Box>
       )}
 
       {/* 내용 */}
-      <Box sx={{ 
-        px: 2, pb: 2, cursor: 'pointer',
-        borderLeft: isRepost ? `3px solid #E8C96D` : 'none',
-        backgroundColor: isRepost ? C.repostBg : 'transparent',
-      }}
-      onClick={() => navigate(`/post/${post.id}`)}>
+      <Box sx={{ px: 2, pb: 1.5, cursor: 'pointer' }}
+        onClick={() => navigate(`/post/${post.id}`)}>
         {post.title && (
-          <Typography fontSize={14} fontWeight={800} mb={0.5} sx={{ color: C.textMain, letterSpacing: '-0.02em', lineHeight: 1.3 }}>
+          <Typography fontSize={14} fontWeight={700} mb={0.3} sx={{ color: C.textMain, letterSpacing: '-0.01em', lineHeight: 1.35 }}>
             {post.title}
           </Typography>
         )}
-        <Typography fontSize={13} sx={{
+        <Typography fontSize={13} lineHeight={1.6} sx={{
           color: C.textSub,
-          display: '-webkit-box', WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical', overflow: 'hidden',
+          wordBreak: 'break-word',
+          whiteSpace: 'pre-wrap', // 줄바꿈 기호(\n)가 있다면 그대로 반영
         }}>
-          <Typography component="span" fontSize={13} fontWeight={600} sx={{ color: C.textUser, mr: 0.7 }}>
+          <Typography component="span" fontSize={13} fontWeight={700} sx={{ color: C.textMain, mr: 0.8 }}>
             {displayUser}
           </Typography>
           {post.content}
         </Typography>
         {tags.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.7, mt: 1 }}>
-            {tags.map((tag, idx) => (
-              <Typography key={`${tag}-${idx}`} component="span"
-                fontSize={12} fontWeight={700}
-                onClick={(e) => { e.stopPropagation(); navigate(`/search?q=${encodeURIComponent(String(tag).startsWith('#') ? tag : '#' + tag)}`); }}
-                sx={{ color: C.tagColor, lineHeight: 1.4, cursor: 'pointer', '&:hover': { opacity: 0.75 } }}>
-                {String(tag).startsWith('#') ? tag : `#${tag}`}
-              </Typography>
-            ))}
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.4, mt: 0.6 }}>
+            {tags.map((tag, idx) => {
+              const clean = String(tag).replace(/^#/, '');
+              return (
+                <Typography key={`${tag}-${idx}`} component="span"
+                  fontSize={13} fontWeight={400}
+                  onClick={(e) => { e.stopPropagation(); navigate(`/tag/${encodeURIComponent(clean)}`); }}
+                  sx={{
+                    color: C.tagColor, lineHeight: 1.5, cursor: 'pointer',
+                    '&:hover': { opacity: 0.7 },
+                    transition: 'opacity 0.12s',
+                  }}>
+                  #{clean}
+                </Typography>
+              );
+            })}
           </Box>
         )}
+        <Typography fontSize={11} sx={{ color: C.textTime, mt: 0.8, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+          {timeAgo(post.created_at)}
+        </Typography>
       </Box>
+      <ReportDialog
+        open={reportOpen}
+        onClose={() => setReportOpen(false)}
+        onSubmit={reason => reportPost(post.id, reason)}
+      />
     </Box>
   );
 };

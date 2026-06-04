@@ -177,21 +177,22 @@ const UserController = {
       const limit = Math.min(parseInt(req.query.limit) || 30, 50);
       const result = await db.query(
         `SELECT u.id, u.username, u.profile_image, u.bio, u.preferred_style,
-                (SELECT COUNT(*) FROM follows WHERE following_id = u.id) AS follower_count
+                (SELECT COUNT(*) FROM follows WHERE following_id = u.id) AS follower_count,
+                (SELECT COUNT(*) FROM follows WHERE follower_id = u.id AND following_id = :1) AS is_following_me
          FROM users u
-         WHERE u.id != :1
+         WHERE u.id != :2
          AND u.is_active = 1
-         AND u.id NOT IN (SELECT following_id FROM follows WHERE follower_id = :2)
+         AND u.id NOT IN (SELECT following_id FROM follows WHERE follower_id = :3)
          AND (
-           u.preferred_style = (SELECT preferred_style FROM users WHERE id = :3)
+           u.preferred_style = (SELECT preferred_style FROM users WHERE id = :4)
            OR u.preferred_style IS NOT NULL
          )
          ORDER BY
-           CASE WHEN u.preferred_style = (SELECT preferred_style FROM users WHERE id = :4)
+           CASE WHEN u.preferred_style = (SELECT preferred_style FROM users WHERE id = :5)
                 THEN 0 ELSE 1 END,
            (SELECT COUNT(*) FROM follows WHERE following_id = u.id) DESC
-         FETCH FIRST :5 ROWS ONLY`,
-        [req.userId, req.userId, req.userId, req.userId, limit]
+         FETCH FIRST :6 ROWS ONLY`,
+        [req.userId, req.userId, req.userId, req.userId, req.userId, limit]
       );
       res.json(result.rows);
     } catch (err) { next(err); }

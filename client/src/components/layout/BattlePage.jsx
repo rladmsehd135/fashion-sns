@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, CircularProgress, useTheme, useMediaQuery, Button, Avatar } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { Box, Typography, CircularProgress, useTheme, useMediaQuery, Button, Avatar, Tooltip } from '@mui/material';
+import { SportsEsportsRounded } from '@mui/icons-material';
 import axiosInstance from '../../api/axiosInstance';
+import RankBadge from '../common/RankBadge';
 import toast from 'react-hot-toast';
 import useThemeStore from '../../store/themeStore';
 
@@ -9,6 +12,7 @@ export default function BattlePage() {
   const [winners, setWinners] = useState([]);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
+  const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { mode } = useThemeStore();
@@ -63,7 +67,7 @@ export default function BattlePage() {
 
   if (!loading && match.length < 2) return (
     <Box sx={{ textAlign: 'center', pt: 20, px: 2 }}>
-      <Typography fontSize={48} mb={2}>⚔️</Typography>
+      <SportsEsportsRounded sx={{ fontSize: 48, mb: 2, color: isDark ? '#2A2A2A' : '#D0D0D0' }} />
       <Typography fontWeight={900} fontSize={22} mb={1} sx={{ color: isDark ? '#EFEFEF' : '#0A0A0A' }}>
         대결할 게시물이 부족해요
       </Typography>
@@ -113,36 +117,61 @@ export default function BattlePage() {
               sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             
             <Box className="overlay" sx={{
-              position: 'absolute', inset: 0, 
-              background: 'radial-gradient(circle, rgba(232,201,109,0.2) 0%, rgba(0,0,0,0.4) 100%)',
+              position: 'absolute', inset: 0,
+              background: 'linear-gradient(135deg, rgba(232,201,109,0.15) 0%, rgba(0,0,0,0.55) 100%)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              opacity: 0, transition: 'opacity 0.3s',
-              backdropFilter: 'blur(3px)'
+              opacity: 0, transition: 'opacity 0.28s cubic-bezier(0.22,1,0.36,1)',
+              backdropFilter: 'blur(4px)',
             }}>
               <Box sx={{
-                width: 90, height: 90, borderRadius: '50%',
-                bgcolor: '#E8C96D', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 0 40px rgba(232,201,109,0.6)', transform: 'scale(1.1)'
+                width: 86, height: 86, borderRadius: '50%',
+                background: 'linear-gradient(145deg, #F2D060 0%, #C8991A 100%)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 0 6px rgba(232,201,109,0.2), 0 8px 32px rgba(232,201,109,0.5)',
+                transition: 'transform 0.2s',
               }}>
-                <Typography fontWeight={900} color="#0A0A0A" fontSize={20}>PICK</Typography>
+                <Typography sx={{ fontFamily:'"Montserrat",sans-serif', fontWeight:900, color:'#0A0A0A', fontSize:16, letterSpacing:'0.12em' }}>
+                  PICK
+                </Typography>
               </Box>
             </Box>
 
-            <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, p: 3, background: 'linear-gradient(to top, rgba(0,0,0,0.9), transparent)', zIndex: 2 }}>
-              <Typography fontWeight={800} color="#fff" fontSize={20} sx={{ letterSpacing: '-0.03em' }}>@{post.username}</Typography>
-              <Typography color="#E8C96D" fontSize={12} fontWeight={800} sx={{ textTransform: 'uppercase', mt: 0.5 }}>#{post.style}</Typography>
+            <Box sx={{
+              position: 'absolute', bottom: 0, left: 0, right: 0, p: 3, zIndex: 2,
+              background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.4) 60%, transparent 100%)',
+            }}>
+              <Typography sx={{ fontFamily:'"Montserrat",sans-serif', fontWeight:800, color:'#fff', fontSize:19, letterSpacing:'-0.02em', lineHeight:1.2 }}>
+                @{post.username}
+              </Typography>
+              <Typography sx={{ color:'#E8C96D', fontSize:11, fontWeight:800, textTransform:'uppercase', letterSpacing:'0.14em', mt:0.5 }}>
+                {post.style}
+              </Typography>
             </Box>
           </Box>
         ))}
 
         {!isMobile && (
           <Box sx={{
-            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            width: 76, height: 76, borderRadius: '50%', bgcolor: '#0D0D0D',
-            border: '3px solid #E8C96D', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            zIndex: 10, boxShadow: '0 0 30px rgba(0,0,0,0.8)'
+            position: 'absolute', top: '50%', left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 72, height: 72, borderRadius: '50%',
+            background: isDark ? '#080808' : '#F0F0F0',
+            border: '2px solid transparent',
+            backgroundImage: isDark
+              ? 'linear-gradient(#080808, #080808), linear-gradient(135deg, #F2D060, #C8991A)'
+              : 'linear-gradient(#F0F0F0, #F0F0F0), linear-gradient(135deg, #F2D060, #C8991A)',
+            backgroundOrigin: 'border-box',
+            backgroundClip: 'padding-box, border-box',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 10,
+            boxShadow: '0 0 0 4px rgba(0,0,0,0.6), 0 4px 24px rgba(0,0,0,0.8)',
           }}>
-            <Typography fontWeight={900} color="#E8C96D" fontSize={24} sx={{ fontFamily: '"Montserrat", sans-serif' }}>VS</Typography>
+            <Typography sx={{
+              fontFamily:'"Montserrat",sans-serif',
+              fontWeight:900, fontSize:20, letterSpacing:'0.06em',
+              background:'linear-gradient(135deg, #F2D060, #C8991A)',
+              WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent',
+            }}>VS</Typography>
           </Box>
         )}
       </Box>
@@ -165,34 +194,66 @@ export default function BattlePage() {
           </Typography>
           <Box sx={{ display: 'flex', gap: 2, overflowX: 'auto', pb: 2, px: 1, '&::-webkit-scrollbar': { display: 'none' } }}>
             {winners.map((win, idx) => (
-              <Box key={win.id} sx={{ flexShrink: 0, width: 100, textAlign: 'center' }}>
-                <Box sx={{ position: 'relative', mb: 1 }}>
-                  <Avatar 
-                    src={`http://localhost:5000${win.thumbnail}`} 
-                    sx={{ width: 80, height: 80, mx: 'auto', 
-                      border: idx === 0 ? '2px solid #FFD700' : 
-                              idx === 1 ? '2px solid #C0C0C0' :
-                              idx === 2 ? '2px solid #CD7F32' :
-                              `1px solid ${isDark ? '#333' : '#DDD'}` 
-                    }}
-                  />
-                  {idx === 0 && <Typography sx={{ position: 'absolute', top: -5, right: -5, fontSize: 20 }}>🥇</Typography>}
-                  {idx === 1 && <Typography sx={{ position: 'absolute', top: -5, right: -5, fontSize: 20 }}>🥈</Typography>}
-                  {idx === 2 && <Typography sx={{ position: 'absolute', top: -5, right: -5, fontSize: 20 }}>🥉</Typography>}
-                  {idx === 0 && (
-                    <Box sx={{ 
-                      position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)',
-                      bgcolor: '#E8C96D', color: '#0A0A0A', fontSize: 10, fontWeight: 900, px: 1, borderRadius: 1
+          <Box 
+            key={win.id} 
+            onClick={() => navigate(`/profile/${win.username}`)}
+            sx={{ 
+              flexShrink: 0, width: 90, textAlign: 'center', cursor: 'pointer',
+              '&:hover': { opacity: 0.75, transition: 'opacity 0.2s' }
+            }}
+          >
+                <Box sx={{ position: 'relative', mb: 1, display: 'inline-block' }}>
+                  {/* 아바타 — 1등은 링 애니메이션 */}
+                  <Box sx={{
+                    p: '2px', borderRadius: '50%',
+                    background: idx === 0 ? 'linear-gradient(135deg, #FFE566, #F5A623)' :
+                                idx === 1 ? 'linear-gradient(135deg, #F0F0F8, #8E8EA8)' :
+                                idx === 2 ? 'linear-gradient(135deg, #ECA96A, #8B3A00)' :
+                                (isDark ? '#2A2A2A' : '#E0E0E0'),
+                    boxShadow: idx === 0 ? '0 0 14px rgba(255,200,0,0.45)' :
+                               idx === 1 ? '0 0 10px rgba(160,160,185,0.35)' :
+                               idx === 2 ? '0 0 10px rgba(180,90,30,0.35)' : 'none',
+                  }}>
+                    <Avatar
+                      src={win.thumbnail ? `http://localhost:5000${win.thumbnail}` : null}
+                      sx={{
+                        width: 72, height: 72,
+                        bgcolor: isDark ? '#1A1A1A' : '#F0F0F0',
+                        color: '#E8C96D', fontWeight: 800, fontSize: 22,
+                        border: `2.5px solid ${isDark ? '#0A0A0A' : '#FFFFFF'}`,
+                      }}
+                    >
+                      {win.username?.[0]?.toUpperCase()}
+                    </Avatar>
+                  </Box>
+                  {/* 배지 오버레이 */}
+                  {idx < 3 && (
+                    <Box sx={{ position: 'absolute', bottom: 0, right: -2 }}>
+                      <RankBadge rank={idx + 1} wins={Number(win.total_wins)} size="overlay" />
+                    </Box>
+                  )}
+                  {/* 4·5위 순위 번호 */}
+                  {idx >= 3 && (
+                    <Box sx={{
+                      position: 'absolute', bottom: 0, right: -2,
+                      width: 20, height: 20, borderRadius: '50%',
+                      backgroundColor: isDark ? '#1A1A1A' : '#E8E8E8',
+                      border: `1.5px solid ${isDark ? '#2A2A2A' : '#CCC'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      TOP
+                      <Typography fontSize={9} fontWeight={800} sx={{ color: isDark ? '#888' : '#666' }}>
+                        {idx + 1}
+                      </Typography>
                     </Box>
                   )}
                 </Box>
-                <Typography fontSize={12} fontWeight={700} noWrap sx={{ color: isDark ? '#EEE' : '#333' }}>
+                <Typography fontSize={11} fontWeight={700} noWrap sx={{ color: isDark ? '#EEE' : '#333', mt: 0.5 }}>
                   @{win.username}
                 </Typography>
-                <Typography fontSize={10} sx={{ color: '#E8C96D', fontWeight: 800 }}>
-                  {win.win_count} WINS
+                <Typography fontSize={10} fontWeight={800} sx={{
+                  color: idx === 0 ? '#FFE566' : idx === 1 ? '#B0B0C8' : idx === 2 ? '#ECA96A' : '#E8C96D',
+                }}>
+                  {Number(win.total_wins)} WINS
                 </Typography>
               </Box>
             ))}

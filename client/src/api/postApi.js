@@ -23,6 +23,9 @@ export const uploadStory = (formData) => axiosInstance.post('/stories', formData
     headers: { 'Content-Type': 'multipart/form-data' },
 });
 export const repostPost  = (id)      => axiosInstance.post(`/posts/${id}/repost`);
+export const unrepostPost = (id)     => axiosInstance.delete(`/posts/${id}/repost`);
 export const deleteStory = (storyId) => axiosInstance.delete(`/stories/${storyId}`);
 export const likeStory = (storyId) => axiosInstance.post(`/stories/${storyId}/like`);
 export const replyToStory = (storyId, message) => axiosInstance.post(`/stories/${storyId}/reply`, { message });
+export const getByTag    = (tag, page = 1) => axiosInstance.get(`/posts/tag/${encodeURIComponent(tag)}?page=${page}`);
+export const reportPost  = (id, reason)   => axiosInstance.post(`/posts/${id}/report`, { reason });

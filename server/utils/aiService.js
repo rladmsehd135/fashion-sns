@@ -8,9 +8,11 @@ require('dotenv').config(); // .env 파일 로드
 // Gemini API 키 (실제 키로 교체 필요)
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Gemini 클라이언트 초기화 (실제 연동 시 주석 해제)
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-lite" });
+// 스타일 분석용: 가벼운 모델
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-lite' });
+// 코디 추천용: 더 강력한 모델 + 창의성 높임 (v1beta 기본값 사용)
+const outfitModel = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 const generateStyleSummary = async (styles, fits) => { // async 함수로 변경
   const fitMap = {
@@ -72,6 +74,100 @@ const generateStyleSummary = async (styles, fits) => { // async 함수로 변경
   }
 };
 
+// JSON 안전 추출 (마크다운 코드블록 포함 처리)
+const extractJSON = (text) => {
+  // ```json ... ``` 혹은 ``` ... ``` 블록 안 JSON 우선 추출
+  const codeBlock = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const target = codeBlock ? codeBlock[1] : text;
+  const jsonMatch = target.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('JSON을 찾을 수 없습니다.');
+  return JSON.parse(jsonMatch[0]);
+};
+
+// 카테고리 매핑
+const CAT_KR = { top:'상의', bottom:'하의', outer:'아우터', shoes:'신발', bag:'가방', acc:'액세서리', etc:'기타' };
+// 기준 아이템 카테고리 제외한 나머지 카테고리 목록
+const remainingCats = (cat) => {
+  const all = ['top','bottom','outer','shoes','bag','acc'];
+  return all.filter(c => c !== cat).map(c => CAT_KR[c]).join(', ');
+};
+
+// 아이템 1개 기반 AI 코디 완성
+const generateOutfitComplete = async (item, userProfile = {}) => {
+  const { style_archetype, preferred_style, height, weight } = userProfile;
+  const catKr = CAT_KR[item.category] || item.category;
+  const leftoverCats = remainingCats(item.category);
+
+  const styleContext = [
+    preferred_style && `선호 스타일: ${preferred_style}`,
+    style_archetype && `스타일 페르소나: ${style_archetype}`,
+    height && weight && `체형: ${height}cm / ${weight}kg`,
+  ].filter(Boolean).join('\n') || '스타일 정보 없음 (기준 아이템만 고려)';
+
+  const prompt = `당신은 대한민국 MZ세대 패션 전문 스타일리스트입니다.
+아래 아이템 하나로 완성된 코디를 만들어주세요.
+
+■ 기준 아이템
+카테고리: ${catKr}
+브랜드: ${item.brand || '브랜드 미상'}
+아이템명: "${item.name}"
+
+■ 착용자 정보
+${styleContext}
+
+■ 반드시 지켜야 할 조건
+1. "${item.name}"의 소재·색상·핏·무드를 구체적으로 분석해서 어울리는 코디를 추천하세요.
+2. 추천 카테고리는 반드시 기준 아이템이 없는 것들(${leftoverCats})로 구성하세요. 기준 아이템과 같은 카테고리는 절대 추천하지 마세요.
+3. 모든 아이템 추천은 반드시 "${item.name}"에 특화된 설명이어야 합니다. 일반적인 추천 금지.
+4. 3~4가지 카테고리를 추천하세요.
+
+■ 응답 형식 (반드시 아래 JSON만, 다른 텍스트 없이)
+{
+  "concept": "이 코디의 컨셉 (예: 도쿄 스트릿 빈티지 무드) — 20자 이내",
+  "reason": "${item.name}에 이 코디가 어울리는 구체적인 이유 — 70자 이내",
+  "items": [
+    {
+      "category": "top or bottom or outer or shoes or bag or acc",
+      "categoryKr": "한국어 카테고리",
+      "recommendation": "${item.name}에 특화된 구체적인 아이템 설명",
+      "brandSuggestion": "어울리는 실제 브랜드 1~2개",
+      "tip": "이 조합만의 스타일링 포인트 — 30자 이내"
+    }
+  ],
+  "colorPalette": ["색상1", "색상2", "색상3"],
+  "season": "봄 or 여름 or 가을 or 겨울 or 사계절"
+}`;
+
+  try {
+    const result = await outfitModel.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.85,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
+    });
+    const text = result.response.text();
+    console.log('[AI Outfit] Raw response:', text.slice(0, 300));
+    return extractJSON(text);
+  } catch (err) {
+    console.error('[AI Outfit] Error:', err.message);
+    // 에러 시 아이템 정보를 반영한 동적 fallback
+    return {
+      concept: `${item.name} 기반 코디`,
+      reason: `AI 서버 오류로 기본 추천을 드립니다. 잠시 후 다시 시도해보세요. (${err.message?.slice(0, 40)})`,
+      items: [
+        item.category !== 'bottom' && { category: 'bottom', categoryKr: '하의', recommendation: '미드 라이즈 슬랙스', brandSuggestion: 'Zara, H&M', tip: '깔끔한 핏으로 정돈하세요' },
+        item.category !== 'shoes' && { category: 'shoes', categoryKr: '신발', recommendation: '클린 토 로퍼 or 스니커즈', brandSuggestion: 'New Balance, Vans', tip: '발끝으로 스타일 마무리' },
+      ].filter(Boolean),
+      colorPalette: ['뉴트럴', '베이지', '블랙'],
+      season: '사계절',
+    };
+  }
+};
+
 module.exports = {
-  generateStyleSummary
+  generateStyleSummary,
+  generateOutfitComplete,
 };

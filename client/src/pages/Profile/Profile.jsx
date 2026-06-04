@@ -5,11 +5,13 @@ import {
   Tab, Tabs, CircularProgress, Chip,
   Dialog, IconButton, Divider, Tooltip,
 } from '@mui/material';
-import { 
-  GridOnRounded, BookmarkBorderRounded, CloseRounded, 
-  AutoAwesomeRounded, CalendarMonthRounded, PsychologyRounded, HelpOutlineRounded, EmojiEventsRounded
+import {
+  GridOnRounded, BookmarkBorderRounded, CloseRounded,
+  AutoAwesomeRounded, CalendarMonthRounded, PsychologyRounded, HelpOutlineRounded, TrendingUpRounded,
 } from '@mui/icons-material';
+import RankBadge from '../../components/common/RankBadge';
 import OOTDCalendar from './OOTDCalendar';
+import StyleTimeline from './StyleTimeline';
 import { getProfile, toggleFollow, getFollowers, getFollowing } from '../../api/userApi';
 import { getUserPosts, getMyBookmarks } from '../../api/postApi';
 import { sendRequest, getRooms } from '../../api/chatApi';
@@ -212,12 +214,14 @@ const Profile = () => {
 
   const isMe = me?.username === username;
 
-  // 순위별 배지 색상 결정
+  // 순위별 배지 색상 결정 (Oracle RANK()는 문자열로 올 수 있어 Number 변환)
   const getRankBadge = (rank, wins) => {
-    if (!wins || wins <= 0) return null;
-    if (rank === 1) return { color: '#FFD700', label: '1st Style King' };
-    if (rank === 2) return { color: '#C0C0C0', label: '2nd Style King' };
-    if (rank === 3) return { color: '#CD7F32', label: '3rd Style King' };
+    const r = Number(rank);
+    const w = Number(wins);
+    if (!w || w <= 0) return null;
+    if (r === 1) return { color: '#FFD700', label: '1st Style King' };
+    if (r === 2) return { color: '#C0C0C0', label: '2nd Style King' };
+    if (r === 3) return { color: '#CD7F32', label: '3rd Style King' };
     return null;
   };
   const rankBadge = getRankBadge(profile?.win_rank, profile?.total_wins);
@@ -305,8 +309,8 @@ const Profile = () => {
     </Box>
   );
 
-  // tab: 0=게시물, 1=캘린더(isMe), 2=저장됨(isMe)
-  const displayPosts = (isMe && tab === 2) ? bookmarks : posts;
+  // tab: 0=게시물, 1=타임라인, 2=캘린더(isMe), 3=저장됨(isMe)
+  const displayPosts = (isMe && tab === 3) ? bookmarks : posts;
 
   return (
     <Box sx={{ maxWidth:935, mx:'auto', backgroundColor: C.bg, minHeight:'100vh' }}>
@@ -337,9 +341,9 @@ const Profile = () => {
         <Box sx={{ display:'flex', alignItems:'flex-start', gap:{ xs:3, md:6 }, mb:3 }}>
 
           {/* 아바타 */}
-          <Box sx={{ flexShrink:0 }}>
+          <Box sx={{ flexShrink: 0, position: 'relative' }}>
             <Box sx={{
-              p:'3px', borderRadius:'50%',
+              p: '3px', borderRadius: '50%',
               background: profile.is_following || isMe
                 ? 'linear-gradient(45deg, #E8C96D, #D4AF37)'
                 : C.border,
@@ -348,15 +352,28 @@ const Profile = () => {
                 src={profile.profile_image
                   ? `http://localhost:5000${profile.profile_image}` : null}
                 sx={{
-                  width:{ xs:80, md:150 }, height:{ xs:80, md:150 },
-                  fontSize:{ xs:28, md:52 },
+                  width: { xs: 80, md: 150 }, height: { xs: 80, md: 150 },
+                  fontSize: { xs: 28, md: 52 },
                   bgcolor: isDark ? '#1A1A1A' : '#F0F0F0',
-                  color:'#E8C96D', fontWeight:800,
-                  border:`3px solid ${C.avatarBorder}`,
+                  color: '#E8C96D', fontWeight: 800,
+                  border: `3px solid ${C.avatarBorder}`,
                 }}>
                 {profile.username?.[0]?.toUpperCase()}
               </Avatar>
             </Box>
+            {/* 배틀 순위 오버레이 배지 (인스타 인증 배지 스타일) */}
+            {rankBadge && (
+              <Box sx={{
+                position: 'absolute',
+                bottom: { xs: 2, md: 6 },
+                right: { xs: 2, md: 6 },
+                border: `2.5px solid ${C.bg}`,
+                borderRadius: '50%',
+                lineHeight: 0,
+              }}>
+                <RankBadge rank={profile.win_rank} wins={profile.total_wins} size="overlay" />
+              </Box>
+            )}
           </Box>
 
           {/* 정보 */}
@@ -382,20 +399,13 @@ const Profile = () => {
                   sx={{ fontSize:{ xs:18, md:28 }, color: C.text, letterSpacing: '0.04em', fontFamily: '"Montserrat", sans-serif' }}>
                   {profile.username}
                 </Typography>
-                {rankBadge && (
-                  <Tooltip title={rankBadge.label} arrow>
-                    <EmojiEventsRounded sx={{ 
-                      fontSize: { xs: 18, md: 22 }, 
-                      color: rankBadge.color,
-                    }} />
-                  </Tooltip>
-                )}
+                <RankBadge rank={profile.win_rank} wins={profile.total_wins} size="large" />
               </Box>
             </Box>
 
             <Box sx={{ display:'flex', alignItems:'center', gap:1, mb:2, flexWrap:'wrap' }}>
               {isMe ? (
-                <Box sx={{ display: 'flex', gap: 1 }}>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button size="small" variant="outlined"
                     onClick={() => navigate('/profile/edit')}
                     sx={{
@@ -406,8 +416,7 @@ const Profile = () => {
                     프로필 수정
                   </Button>
                   <Button
-                    size="small"
-                    variant="outlined"
+                    size="small" variant="outlined"
                     onClick={() => setShowReport(true)}
                     startIcon={<AutoAwesomeRounded sx={{ fontSize: 16 }} />}
                     sx={{
@@ -417,6 +426,18 @@ const Profile = () => {
                       '&:hover': { backgroundColor: 'rgba(232,201,109,0.1)' },
                     }}>
                     스타일 분석
+                  </Button>
+                  <Button
+                    size="small" variant="contained"
+                    onClick={() => navigate('/outfit-ai')}
+                    startIcon={<AutoAwesomeRounded sx={{ fontSize: 16 }} />}
+                    sx={{
+                      background: 'linear-gradient(135deg, #E8C96D, #D4AF37)',
+                      color: '#0A0A0A', borderRadius: 2, fontWeight: 700,
+                      boxShadow: '0 2px 8px rgba(232,201,109,0.35)',
+                      '&:hover': { opacity: 0.9 },
+                    }}>
+                    AI 코디
                   </Button>
                 </Box>
               ) : (
@@ -452,26 +473,41 @@ const Profile = () => {
             </Box>
 
             {/* 통계 */}
-            <Box sx={{ display:'flex', gap:{ xs:3, md:5 }, mb:2 }}>
+            <Box sx={{ display:'flex', gap:0, mb:2, alignItems:'center' }}>
               {[
                 { label:'게시물',  value: profile.post_count,      onClick: null },
                 { label:'팔로워',  value: profile.follower_count,  onClick: () => openModal('followers') },
                 { label:'팔로잉',  value: profile.following_count, onClick: () => openModal('following') },
-              ].map(item => (
-                <Box key={item.label}
-                  onClick={item.onClick || undefined}
-                  sx={{
-                    textAlign:{ xs:'center', md:'left' },
-                    cursor: item.onClick ? 'pointer' : 'default',
-                    '&:hover': item.onClick ? { opacity:0.75 } : {},
-                    transition:'opacity 0.15s',
-                  }}>
-                  <Typography fontWeight={700} fontSize={16} sx={{ color: C.text }}>
-                    {item.value?.toLocaleString()}
-                  </Typography>
-                  <Typography variant="caption" fontSize={13} sx={{ color: C.textMid }}>
-                    {item.label}
-                  </Typography>
+              ].map((item, i) => (
+                <Box key={item.label} sx={{ display:'flex', alignItems:'center' }}>
+                  {i > 0 && (
+                    <Box sx={{ width:'1px', height:28, backgroundColor: C.border, mx:{ xs:2.5, md:3 }, flexShrink:0 }} />
+                  )}
+                  <Box
+                    onClick={item.onClick || undefined}
+                    sx={{
+                      textAlign:'center',
+                      cursor: item.onClick ? 'pointer' : 'default',
+                      transition:'all 0.18s cubic-bezier(0.22,1,0.36,1)',
+                      '&:hover': item.onClick ? {
+                        '& .stat-num': { color:'#E8C96D' },
+                      } : {},
+                    }}>
+                    <Typography
+                      className="stat-num"
+                      sx={{
+                        fontFamily:'"Montserrat","Pretendard",sans-serif',
+                        fontWeight:800, fontSize:{ xs:17, md:20 },
+                        color: C.text, lineHeight:1.1,
+                        transition:'color 0.18s',
+                        letterSpacing:'-0.02em',
+                      }}>
+                      {item.value?.toLocaleString() ?? '—'}
+                    </Typography>
+                    <Typography sx={{ fontSize:11, color: C.textMid, mt:'2px', fontWeight:500, letterSpacing:'0.02em' }}>
+                      {item.label}
+                    </Typography>
+                  </Box>
                 </Box>
               ))}
             </Box>
@@ -520,6 +556,8 @@ const Profile = () => {
           }}>
           <Tab icon={<GridOnRounded sx={{ fontSize:20 }} />}
             label="게시물" iconPosition="start" sx={{ gap:0.5 }} />
+          <Tab icon={<TrendingUpRounded sx={{ fontSize:20 }} />}
+            label="타임라인" iconPosition="start" sx={{ gap:0.5 }} />
           {isMe && (
             <Tab icon={<CalendarMonthRounded sx={{ fontSize:20 }} />}
               label="캘린더" iconPosition="start" sx={{ gap:0.5 }} />
@@ -531,12 +569,19 @@ const Profile = () => {
         </Tabs>
       </Box>
 
-      {/* 캘린더 탭 */}
-      {isMe && tab === 1 ? (
+      {/* 타임라인 탭 */}
+      {tab === 1 ? (
+        <StyleTimeline username={username} isDark={isDark} />
+      ) : isMe && tab === 2 ? (
         <OOTDCalendar posts={posts} isDark={isDark} />
       ) : displayPosts.length === 0 ? (
         <Box sx={{ textAlign:'center', py:15 }}>
-          <Typography sx={{ fontSize:48, mb:2 }}>📷</Typography>
+          <Box sx={{ display:'flex', justifyContent:'center', mb:2 }}>
+            {tab === 0
+              ? <GridOnRounded        sx={{ fontSize:48, color: isDark ? '#2A2A2A' : '#D0D0D0' }} />
+              : <BookmarkBorderRounded sx={{ fontSize:48, color: isDark ? '#2A2A2A' : '#D0D0D0' }} />
+            }
+          </Box>
           <Typography fontWeight={700} fontSize={20} mb={1} sx={{ color: C.text }}>
             {tab === 0 ? '아직 게시물이 없어요' : '저장된 게시물이 없어요'}
           </Typography>

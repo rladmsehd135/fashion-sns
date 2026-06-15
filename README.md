@@ -27,7 +27,8 @@
 ### 홈 피드
 > 스토리 · 팔로잉 피드 · 외워님을 위한 추천 사이드바
 
-![홈 피드](./screenshot_feed.png)
+![홈 피드](.<img width="1920" height="988" alt="image" src="https://github.com/user-attachments/assets/3cbf4137-50ec-46d1-a0ca-ae52cc9863d0" />
+)
 
 ---
 

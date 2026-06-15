@@ -12,15 +12,57 @@
 
 <br />
 
-## 스크린샷
+---
 
-| 피드 & 탐색 | 프로필 | 랭킹 |
-|:-----------:|:------:|:----:|
-| 팔로잉 피드 / 카테고리 탐색 | OOTD 그리드 · 스타일 분석 · AI 코디 | 브랜드 · 아이템 · 스타일 순위 |
+## 🎬 시연 영상
 
-| 스타일 배틀 | 홈 피드 |
-|:-----------:|:-------:|
-| WHOSE FIT IS MORE AESTHETIC? | 스토리 · 팔로잉 피드 · 추천 사이드바 |
+[![시연 영상 보기](https://img.shields.io/badge/▶_시연_영상_보기-Google_Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/drive/folders/1oaEytcE0jzVD3hqHgNq9BROj8nH7tUs_)
+
+<br />
+
+---
+
+## 📸 스크린샷
+
+### 홈 피드
+> 스토리 · 팔로잉 피드 · 외워님을 위한 추천 사이드바
+
+![홈 피드](./screenshot_feed.png)
+
+---
+
+### 탐색 페이지
+> 전체 / 추천 피드 · 카테고리 필터 (테크웨어 · 캐주얼 · 스트릿 등)
+
+![탐색](./screenshot_explore.png)
+
+---
+
+### 프로필 — 다크 모드
+> OOTD 그리드 · 스타일 분석 · AI 코디 버튼 · 팔로워/팔로잉
+
+![프로필 다크](./screenshot_profile_dark.png)
+
+---
+
+### 프로필 — 라이트 모드
+> 다크/라이트 테마 전환 (Zustand persist)
+
+![프로필 라이트](./screenshot_profile_light.png)
+
+---
+
+### 인기 랭킹
+> 브랜드 · 아이템 · 스타일 순위 · 주간/월간 필터
+
+![랭킹](./screenshot_ranking.png)
+
+---
+
+### 스타일 배틀
+> WHOSE FIT IS MORE AESTHETIC? — 두 코디 중 더 나은 핏 투표
+
+![스타일 배틀](./screenshot_battle.png)
 
 <br />
 
@@ -100,7 +142,7 @@
 ### 🏆 부가 기능
 - 24시간 스토리
 - 브랜드 · 아이템 · 스타일 인기 랭킹
-- 스타일 배틀
+- 스타일 배틀 투표
 - 팔로우 · 팔로잉 네트워크
 - 다크 / 라이트 모드 (Zustand persist)
 

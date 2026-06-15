@@ -35,35 +35,40 @@
 ### 탐색 페이지
 > 전체 / 추천 피드 · 카테고리 필터 (테크웨어 · 캐주얼 · 스트릿 등)
 
-![탐색](./screenshot_explore.png)
+![탐색]<img width="1914" height="961" alt="image" src="https://github.com/user-attachments/assets/ed253a26-6d54-48ba-b7ac-620989a4186d" />
+
 
 ---
 
 ### 프로필 — 다크 모드
 > OOTD 그리드 · 스타일 분석 · AI 코디 버튼 · 팔로워/팔로잉
 
-![프로필 다크](./screenshot_profile_dark.png)
+![프로필 다크]<img width="1913" height="960" alt="image" src="https://github.com/user-attachments/assets/a8ddc2b0-1267-45e6-aa2d-4dbdfd8a7864" />
+
 
 ---
 
 ### 프로필 — 라이트 모드
 > 다크/라이트 테마 전환 (Zustand persist)
 
-![프로필 라이트](./screenshot_profile_light.png)
+![프로필 라이트]<img width="1913" height="959" alt="image" src="https://github.com/user-attachments/assets/b2e692af-87ab-48b7-8b35-8394851ab597" />
+
 
 ---
 
 ### 인기 랭킹
 > 브랜드 · 아이템 · 스타일 순위 · 주간/월간 필터
 
-![랭킹](./screenshot_ranking.png)
+![랭킹]<img width="1916" height="955" alt="image" src="https://github.com/user-attachments/assets/779e09b8-bbe1-4e9f-97ca-b7e9f227ea7f" />
+
 
 ---
 
 ### 스타일 배틀
 > WHOSE FIT IS MORE AESTHETIC? — 두 코디 중 더 나은 핏 투표
 
-![스타일 배틀](./screenshot_battle.png)
+![스타일 배틀]<img width="1919" height="960" alt="image" src="https://github.com/user-attachments/assets/2d2f033d-1548-4612-8673-7dba069acbfb" />
+
 
 <br />
 
@@ -73,8 +78,8 @@
 
 | 항목 | 일정 |
 |------|------|
-| 개발 기간 | 2025.05.28 ~ 2025.06.08 |
-| 산출물 마감 | 2025.06.09 |
+| 개발 기간 | 2026.05.28 ~ 2026.06.08 |
+| 산출물 마감 | 2026.06.09 |
 | 제출 항목 | 발표 자료, Git 저장소 |
 
 <br />
@@ -271,9 +276,9 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ---
 
-## 포트폴리오 관점에서의 강점
+## 배운점
 
-이 프로젝트는 단순 CRUD를 넘어 아래 역량을 한 번에 보여줍니다.
+이 프로젝트는 단순 CRUD를 넘어 아래 스킬을 한 번에 상승시켜줍니다.
 
 - 사용자 중심 서비스를 코드로 구현하는 **기획 → 구현 역량**
 - React + Express + Oracle를 연결하는 **풀스택 개발 역량**
@@ -285,4 +290,4 @@ GEMINI_API_KEY=your_gemini_api_key
 
 ---
 
-*© 2025 FITLOG*
+*© 2026 FITLOG*

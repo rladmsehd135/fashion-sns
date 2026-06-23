@@ -4,8 +4,11 @@
 
 **패션 SNS — 코디 공유 · AI 스타일 추천 · 실시간 커뮤니티**
 
-[![시연 영상](https://img.shields.io/badge/▶_시연_영상-Google_Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/drive/folders/1oaEytcE0jzVD3hqHgNq9BROj8nH7tUs_)
-[![코드 리뷰 문서](https://img.shields.io/badge/📝_코드_리뷰_문서-Google_Drive-4285F4?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/drive/folders/1UnxuoVsvhu1pmnWY_Mc6qzHJsb51ovtb)
+### 👇 아래 배지를 클릭하면 이동합니다
+
+[![코드 리뷰 문서](https://img.shields.io/badge/📝_코드_리뷰_문서_보기-Google_Docs-4285F4?style=for-the-badge&logo=googledocs&logoColor=white)](https://docs.google.com/document/d/1GeO3RuV4dDB54TZ3DyBhU-E9A0YcUBB4/edit)
+&nbsp;&nbsp;
+[![시연 영상](https://img.shields.io/badge/▶️_시연_영상_보기-Google_Drive-34A853?style=for-the-badge&logo=googledrive&logoColor=white)](https://drive.google.com/drive/folders/1oaEytcE0jzVD3hqHgNq9BROj8nH7tUs_)
 
 <br />
 
